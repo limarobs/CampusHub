@@ -110,18 +110,31 @@ class SignupActivity : AppCompatActivity() {
             displayName = nicknameValue
         }
 
-        currentUser.updateProfile(profileUpdates).addOnCompleteListener { task ->
-            signupButton.isEnabled = true
-
-            val message = if (task.isSuccessful) {
-                "Cadastro OK!"
-            } else {
-                "Conta criada, mas não foi possível salvar o apelido."
+        currentUser.updateProfile(profileUpdates).addOnCompleteListener { profileTask ->
+            if (!profileTask.isSuccessful) {
+                signupButton.isEnabled = true
+                Toast.makeText(
+                    this,
+                    "Conta criada, mas não foi possível salvar o apelido.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@addOnCompleteListener
             }
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 
-            startActivity(Intent(this, WelcomeActivity::class.java))
-            finishAffinity()
+            UserProfileRepository.create(currentUser, nicknameValue)
+                .addOnCompleteListener { firestoreTask ->
+                    signupButton.isEnabled = true
+
+                    val message = if (firestoreTask.isSuccessful) {
+                        "Cadastro OK!"
+                    } else {
+                        "Conta criada, mas não foi possível salvar o perfil."
+                    }
+                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+
+                    startActivity(Intent(this, WelcomeActivity::class.java))
+                    finishAffinity()
+                }
         }
     }
 }

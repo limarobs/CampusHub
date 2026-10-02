@@ -24,6 +24,10 @@ class WelcomeActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tvUserEmail).text =
             currentUser.email ?: "E-mail não disponível"
 
+        findViewById<Button>(R.id.btnEditProfile).setOnClickListener {
+            startActivity(Intent(this, ProfileActivity::class.java))
+        }
+
         findViewById<Button>(R.id.btnLogout).setOnClickListener {
             FirebaseAuth.getInstance().signOut()
             navigateToLogin()
