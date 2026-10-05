@@ -4,19 +4,36 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 
 class EventDetailsActivity : AppCompatActivity() {
 
+    private lateinit var registrationButton: MaterialButton
+    private lateinit var userId: String
+    private lateinit var event: CampusEvent
+    private var isRegistered = false
+    private var isRegistrationStateLoaded = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (FirebaseAuth.getInstance().currentUser == null) {
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser == null) {
             navigateToLogin()
             return
         }
+
+        userId = currentUser.uid
+        event = CampusEvent(
+            id = intent.getStringExtra(EXTRA_EVENT_ID).orEmpty(),
+            title = intent.getStringExtra(EXTRA_TITLE).orEmpty(),
+            description = intent.getStringExtra(EXTRA_DESCRIPTION).orEmpty(),
+            date = intent.getStringExtra(EXTRA_DATE).orEmpty(),
+            location = intent.getStringExtra(EXTRA_LOCATION).orEmpty()
+        )
 
         setContentView(R.layout.activity_event_details)
 
@@ -25,13 +42,103 @@ class EventDetailsActivity : AppCompatActivity() {
         }
 
         findViewById<TextView>(R.id.tvEventDetailsTitle).text =
-            intent.getStringExtra(EXTRA_TITLE).orEmpty()
+            event.title
         findViewById<TextView>(R.id.tvEventDetailsDescription).text =
-            intent.getStringExtra(EXTRA_DESCRIPTION).orEmpty()
+            event.description
         findViewById<TextView>(R.id.tvEventDetailsDate).text =
-            intent.getStringExtra(EXTRA_DATE).orEmpty()
+            event.date
         findViewById<TextView>(R.id.tvEventDetailsLocation).text =
-            intent.getStringExtra(EXTRA_LOCATION).orEmpty()
+            event.location
+
+        registrationButton = findViewById(R.id.btnRegistration)
+        registrationButton.setOnClickListener {
+            if (!isRegistrationStateLoaded) {
+                loadRegistrationState()
+            } else if (isRegistered) {
+                cancelRegistration()
+            } else {
+                registerForEvent()
+            }
+        }
+
+        loadRegistrationState()
+    }
+
+    private fun loadRegistrationState() {
+        isRegistrationStateLoaded = false
+        registrationButton.isEnabled = false
+        registrationButton.text = "Verificando inscrição..."
+
+        EventRegistrationRepository.getRegistration(userId, event.id)
+            .addOnCompleteListener { task ->
+                registrationButton.isEnabled = true
+
+                if (!task.isSuccessful) {
+                    registrationButton.text = "Tentar novamente"
+                    Toast.makeText(
+                        this,
+                        "Não foi possível verificar sua inscrição.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@addOnCompleteListener
+                }
+
+                isRegistered = task.result?.exists() == true
+                isRegistrationStateLoaded = true
+                updateRegistrationButton()
+            }
+    }
+
+    private fun registerForEvent() {
+        registrationButton.isEnabled = false
+        registrationButton.text = "Inscrevendo..."
+
+        EventRegistrationRepository.register(userId, event).addOnCompleteListener { task ->
+            registrationButton.isEnabled = true
+
+            if (task.isSuccessful) {
+                isRegistered = true
+                updateRegistrationButton()
+                Toast.makeText(this, "Inscrição realizada.", Toast.LENGTH_SHORT).show()
+            } else {
+                updateRegistrationButton()
+                Toast.makeText(
+                    this,
+                    "Não foi possível realizar a inscrição.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun cancelRegistration() {
+        registrationButton.isEnabled = false
+        registrationButton.text = "Cancelando inscrição..."
+
+        EventRegistrationRepository.cancel(userId, event.id).addOnCompleteListener { task ->
+            registrationButton.isEnabled = true
+
+            if (task.isSuccessful) {
+                isRegistered = false
+                updateRegistrationButton()
+                Toast.makeText(this, "Inscrição cancelada.", Toast.LENGTH_SHORT).show()
+            } else {
+                updateRegistrationButton()
+                Toast.makeText(
+                    this,
+                    "Não foi possível cancelar a inscrição.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun updateRegistrationButton() {
+        registrationButton.text = if (isRegistered) {
+            "Cancelar inscrição"
+        } else {
+            "Inscrever-se"
+        }
     }
 
     private fun navigateToLogin() {
