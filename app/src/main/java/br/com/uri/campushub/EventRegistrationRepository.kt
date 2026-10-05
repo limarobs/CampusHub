@@ -3,6 +3,7 @@ package br.com.uri.campushub
 import com.google.android.gms.tasks.Task
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.QuerySnapshot
 
 object EventRegistrationRepository {
 
@@ -28,6 +29,14 @@ object EventRegistrationRepository {
 
     fun cancel(userId: String, eventId: String): Task<Void> {
         return registrationDocument(userId, eventId).delete()
+    }
+
+    fun getRegistrations(userId: String): Task<QuerySnapshot> {
+        return FirebaseServices.firestore
+            .collection(USERS_COLLECTION)
+            .document(userId)
+            .collection(REGISTRATIONS_COLLECTION)
+            .get()
     }
 
     private fun registrationDocument(userId: String, eventId: String) =

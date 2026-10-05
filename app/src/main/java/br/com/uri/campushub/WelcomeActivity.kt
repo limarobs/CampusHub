@@ -28,6 +28,10 @@ class WelcomeActivity : AppCompatActivity() {
             startActivity(Intent(this, EventsActivity::class.java))
         }
 
+        findViewById<Button>(R.id.btnMyEvents).setOnClickListener {
+            startActivity(Intent(this, MyEventsActivity::class.java))
+        }
+
         findViewById<Button>(R.id.btnEditProfile).setOnClickListener {
             startActivity(Intent(this, ProfileActivity::class.java))
         }
