@@ -92,6 +92,9 @@ class EventsActivity : AppCompatActivity() {
         card.findViewById<TextView>(R.id.tvEventDescription).text = event.description
         card.findViewById<TextView>(R.id.tvEventDate).text = event.date
         card.findViewById<TextView>(R.id.tvEventLocation).text = event.location
+        card.setOnClickListener {
+            startActivity(EventDetailsActivity.createIntent(this, event))
+        }
         eventsContainer.addView(card)
     }
 
