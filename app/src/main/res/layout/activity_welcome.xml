@@ -80,6 +80,15 @@
                     android:textAllCaps="false" />
 
                 <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnMyFavorites"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="12dp"
+                    android:text="Meus favoritos"
+                    android:textAllCaps="false" />
+
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnEditProfile"
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="match_parent"

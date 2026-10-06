@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
 import br.com.uri.campushub.feature.auth.ui.MainActivity
+import br.com.uri.campushub.feature.events.data.EventFavoriteRepository
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
 import br.com.uri.campushub.feature.events.model.CampusEvent
 import com.google.android.material.button.MaterialButton
@@ -17,10 +18,13 @@ import com.google.firebase.auth.FirebaseAuth
 class EventDetailsActivity : AppCompatActivity() {
 
     private lateinit var registrationButton: MaterialButton
+    private lateinit var favoriteButton: MaterialButton
     private lateinit var userId: String
     private lateinit var event: CampusEvent
     private var isRegistered = false
     private var isRegistrationStateLoaded = false
+    private var isFavorite = false
+    private var isFavoriteStateLoaded = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,7 +73,19 @@ class EventDetailsActivity : AppCompatActivity() {
             }
         }
 
+        favoriteButton = findViewById(R.id.btnFavorite)
+        favoriteButton.setOnClickListener {
+            if (!isFavoriteStateLoaded) {
+                loadFavoriteState()
+            } else if (isFavorite) {
+                removeFavorite()
+            } else {
+                addFavorite()
+            }
+        }
+
         loadRegistrationState()
+        loadFavoriteState()
     }
 
     private fun loadRegistrationState() {
@@ -146,6 +162,82 @@ class EventDetailsActivity : AppCompatActivity() {
             "Cancelar inscrição"
         } else {
             "Inscrever-se"
+        }
+    }
+
+    private fun loadFavoriteState() {
+        isFavoriteStateLoaded = false
+        favoriteButton.isEnabled = false
+        favoriteButton.text = "Verificando favoritos..."
+
+        EventFavoriteRepository.getFavorite(userId, event.id).addOnCompleteListener { task ->
+            favoriteButton.isEnabled = true
+
+            if (!task.isSuccessful) {
+                favoriteButton.text = "Tentar novamente"
+                Toast.makeText(
+                    this,
+                    "NÃ£o foi possÃ­vel verificar seus favoritos.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@addOnCompleteListener
+            }
+
+            isFavorite = task.result?.exists() == true
+            isFavoriteStateLoaded = true
+            updateFavoriteButton()
+        }
+    }
+
+    private fun addFavorite() {
+        favoriteButton.isEnabled = false
+        favoriteButton.text = "Adicionando aos favoritos..."
+
+        EventFavoriteRepository.favorite(userId, event).addOnCompleteListener { task ->
+            favoriteButton.isEnabled = true
+
+            if (task.isSuccessful) {
+                isFavorite = true
+                updateFavoriteButton()
+                Toast.makeText(this, "Evento adicionado aos favoritos.", Toast.LENGTH_SHORT).show()
+            } else {
+                updateFavoriteButton()
+                Toast.makeText(
+                    this,
+                    "NÃ£o foi possÃ­vel adicionar aos favoritos.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun removeFavorite() {
+        favoriteButton.isEnabled = false
+        favoriteButton.text = "Removendo dos favoritos..."
+
+        EventFavoriteRepository.unfavorite(userId, event.id).addOnCompleteListener { task ->
+            favoriteButton.isEnabled = true
+
+            if (task.isSuccessful) {
+                isFavorite = false
+                updateFavoriteButton()
+                Toast.makeText(this, "Evento removido dos favoritos.", Toast.LENGTH_SHORT).show()
+            } else {
+                updateFavoriteButton()
+                Toast.makeText(
+                    this,
+                    "NÃ£o foi possÃ­vel remover dos favoritos.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun updateFavoriteButton() {
+        favoriteButton.text = if (isFavorite) {
+            "Remover dos favoritos"
+        } else {
+            "Adicionar aos favoritos"
         }
     }
 

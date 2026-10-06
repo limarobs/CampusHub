@@ -99,5 +99,14 @@
             android:layout_marginTop="20dp"
             android:text="Inscrever-se"
             android:textAllCaps="false" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnFavorite"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="12dp"
+            android:text="Adicionar aos favoritos"
+            android:textAllCaps="false" />
     </LinearLayout>
 </ScrollView>

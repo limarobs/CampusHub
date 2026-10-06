@@ -12,6 +12,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CampusHub">
         <activity android:name=".feature.auth.ui.PasswordRecoveryActivity" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".feature.events.ui.MyFavoritesActivity" />
         <activity android:name=".feature.events.ui.MyEventsActivity" />
         <activity android:name=".feature.events.ui.EventDetailsActivity" />
         <activity android:name=".feature.events.ui.EventsActivity" />

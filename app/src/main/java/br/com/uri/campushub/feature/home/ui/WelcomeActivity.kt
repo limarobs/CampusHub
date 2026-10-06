@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
 import br.com.uri.campushub.feature.auth.ui.MainActivity
 import br.com.uri.campushub.feature.events.ui.EventsActivity
+import br.com.uri.campushub.feature.events.ui.MyFavoritesActivity
 import br.com.uri.campushub.feature.events.ui.MyEventsActivity
 import br.com.uri.campushub.feature.profile.ui.ProfileActivity
 import com.google.firebase.auth.FirebaseAuth
@@ -35,6 +36,10 @@ class WelcomeActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnMyEvents).setOnClickListener {
             startActivity(Intent(this, MyEventsActivity::class.java))
+        }
+
+        findViewById<Button>(R.id.btnMyFavorites).setOnClickListener {
+            startActivity(Intent(this, MyFavoritesActivity::class.java))
         }
 
         findViewById<Button>(R.id.btnEditProfile).setOnClickListener {
