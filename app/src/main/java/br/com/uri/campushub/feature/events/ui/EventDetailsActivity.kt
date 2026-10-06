@@ -3,22 +3,41 @@ package br.com.uri.campushub.feature.events.ui
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.InputType
+import android.view.View
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
 import br.com.uri.campushub.feature.auth.ui.MainActivity
+import br.com.uri.campushub.feature.events.data.EventCommentRepository
 import br.com.uri.campushub.feature.events.data.EventFavoriteRepository
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
+import br.com.uri.campushub.feature.events.model.EventComment
 import br.com.uri.campushub.feature.events.model.CampusEvent
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
+import java.text.DateFormat
+import java.util.Date
 
 class EventDetailsActivity : AppCompatActivity() {
 
     private lateinit var registrationButton: MaterialButton
     private lateinit var favoriteButton: MaterialButton
+    private lateinit var commentInput: TextInputEditText
+    private lateinit var addCommentButton: MaterialButton
+    private lateinit var commentsProgress: ProgressBar
+    private lateinit var commentsContainer: LinearLayout
+    private lateinit var emptyCommentsMessage: TextView
+    private lateinit var commentsErrorMessage: TextView
+    private lateinit var authorName: String
     private lateinit var userId: String
     private lateinit var event: CampusEvent
     private var isRegistered = false
@@ -36,6 +55,7 @@ class EventDetailsActivity : AppCompatActivity() {
         }
 
         userId = currentUser.uid
+        authorName = currentUser.displayName ?: currentUser.email ?: "Aluno"
         event = CampusEvent(
             id = intent.getStringExtra(EXTRA_EVENT_ID).orEmpty(),
             title = intent.getStringExtra(EXTRA_TITLE).orEmpty(),
@@ -84,8 +104,17 @@ class EventDetailsActivity : AppCompatActivity() {
             }
         }
 
+        commentInput = findViewById(R.id.etNewComment)
+        addCommentButton = findViewById(R.id.btnAddComment)
+        commentsProgress = findViewById(R.id.progressComments)
+        commentsContainer = findViewById(R.id.commentsContainer)
+        emptyCommentsMessage = findViewById(R.id.tvEmptyComments)
+        commentsErrorMessage = findViewById(R.id.tvCommentsError)
+        addCommentButton.setOnClickListener { addComment() }
+
         loadRegistrationState()
         loadFavoriteState()
+        loadComments()
     }
 
     private fun loadRegistrationState() {
@@ -239,6 +268,154 @@ class EventDetailsActivity : AppCompatActivity() {
         } else {
             "Adicionar aos favoritos"
         }
+    }
+
+    private fun loadComments() {
+        commentsProgress.visibility = View.VISIBLE
+        commentsContainer.removeAllViews()
+        emptyCommentsMessage.visibility = View.GONE
+        commentsErrorMessage.visibility = View.GONE
+
+        EventCommentRepository.getComments(event.id).addOnCompleteListener { task ->
+            commentsProgress.visibility = View.GONE
+
+            if (!task.isSuccessful) {
+                commentsErrorMessage.visibility = View.VISIBLE
+                return@addOnCompleteListener
+            }
+
+            val comments = task.result?.documents.orEmpty().map(::toEventComment)
+            if (comments.isEmpty()) {
+                emptyCommentsMessage.visibility = View.VISIBLE
+                return@addOnCompleteListener
+            }
+
+            comments.forEach(::addCommentCard)
+        }
+    }
+
+    private fun addComment() {
+        val content = commentInput.text?.toString()?.trim().orEmpty()
+        if (content.isBlank()) {
+            commentInput.error = "Digite um comentário antes de publicar."
+            return
+        }
+
+        addCommentButton.isEnabled = false
+        addCommentButton.text = "Publicando comentário..."
+        EventCommentRepository.addComment(event.id, userId, authorName, content)
+            .addOnCompleteListener { task ->
+                addCommentButton.isEnabled = true
+                addCommentButton.text = "Publicar comentário"
+
+                if (task.isSuccessful) {
+                    commentInput.text?.clear()
+                    loadComments()
+                } else {
+                    Toast.makeText(
+                        this,
+                        "Não foi possível publicar o comentário.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+    }
+
+    private fun toEventComment(document: DocumentSnapshot): EventComment {
+        return EventComment(
+            id = document.id,
+            authorId = document.getString("authorId").orEmpty(),
+            authorName = document.getString("authorName") ?: "Aluno",
+            content = document.getString("content").orEmpty(),
+            createdAt = document.getTimestamp("createdAt")
+        )
+    }
+
+    private fun addCommentCard(comment: EventComment) {
+        val card = layoutInflater.inflate(R.layout.item_event_comment, commentsContainer, false)
+        card.findViewById<TextView>(R.id.tvCommentAuthor).text = comment.authorName
+        card.findViewById<TextView>(R.id.tvCommentDate).text = formatCommentDate(comment.createdAt)
+        card.findViewById<TextView>(R.id.tvCommentContent).text = comment.content
+
+        if (comment.authorId == userId) {
+            val ownerActions = card.findViewById<LinearLayout>(R.id.commentOwnerActions)
+            ownerActions.visibility = View.VISIBLE
+            card.findViewById<MaterialButton>(R.id.btnEditComment).setOnClickListener {
+                showEditCommentDialog(comment)
+            }
+            card.findViewById<MaterialButton>(R.id.btnDeleteComment).setOnClickListener {
+                showDeleteCommentDialog(comment)
+            }
+        }
+
+        commentsContainer.addView(card)
+    }
+
+    private fun showEditCommentDialog(comment: EventComment) {
+        val editText = EditText(this).apply {
+            setText(comment.content)
+            setSelectAllOnFocus(false)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            setPadding(48, 0, 48, 0)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Editar comentário")
+            .setView(editText)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Salvar") { _, _ ->
+                val content = editText.text.toString().trim()
+                if (content.isBlank()) {
+                    Toast.makeText(this, "O comentário não pode ficar vazio.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
+                EventCommentRepository.updateComment(event.id, comment.id, content)
+                    .addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            loadComments()
+                        } else {
+                            Toast.makeText(
+                                this,
+                                "Não foi possível editar o comentário.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+            }
+            .show()
+    }
+
+    private fun showDeleteCommentDialog(comment: EventComment) {
+        AlertDialog.Builder(this)
+            .setTitle("Excluir comentário?")
+            .setMessage("Esta ação não pode ser desfeita.")
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Excluir") { _, _ ->
+                EventCommentRepository.deleteComment(event.id, comment.id)
+                    .addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            loadComments()
+                        } else {
+                            Toast.makeText(
+                                this,
+                                "Não foi possível excluir o comentário.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+            }
+            .show()
+    }
+
+    private fun formatCommentDate(timestamp: Timestamp?): String {
+        if (timestamp == null) {
+            return "Agora"
+        }
+
+        return DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+            .format(Date(timestamp.toDate().time))
     }
 
     private fun timestampFromExtras(secondsKey: String, nanosecondsKey: String): Timestamp? {
