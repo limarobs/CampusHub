@@ -95,7 +95,10 @@ class MyEventsActivity : AppCompatActivity() {
             title = document.getString("title").orEmpty(),
             description = document.getString("description").orEmpty(),
             date = document.getString("date").orEmpty(),
-            location = document.getString("location").orEmpty()
+            location = document.getString("location").orEmpty(),
+            category = document.getString("category") ?: "Sem categoria",
+            startsAt = document.getTimestamp("startsAt"),
+            endsAt = document.getTimestamp("endsAt")
         )
     }
 

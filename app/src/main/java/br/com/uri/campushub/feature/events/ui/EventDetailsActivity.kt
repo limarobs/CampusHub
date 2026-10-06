@@ -11,6 +11,7 @@ import br.com.uri.campushub.feature.auth.ui.MainActivity
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
 import br.com.uri.campushub.feature.events.model.CampusEvent
 import com.google.android.material.button.MaterialButton
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 
 class EventDetailsActivity : AppCompatActivity() {
@@ -36,7 +37,10 @@ class EventDetailsActivity : AppCompatActivity() {
             title = intent.getStringExtra(EXTRA_TITLE).orEmpty(),
             description = intent.getStringExtra(EXTRA_DESCRIPTION).orEmpty(),
             date = intent.getStringExtra(EXTRA_DATE).orEmpty(),
-            location = intent.getStringExtra(EXTRA_LOCATION).orEmpty()
+            location = intent.getStringExtra(EXTRA_LOCATION).orEmpty(),
+            category = intent.getStringExtra(EXTRA_CATEGORY) ?: "Sem categoria",
+            startsAt = timestampFromExtras(EXTRA_STARTS_AT_SECONDS, EXTRA_STARTS_AT_NANOSECONDS),
+            endsAt = timestampFromExtras(EXTRA_ENDS_AT_SECONDS, EXTRA_ENDS_AT_NANOSECONDS)
         )
 
         setContentView(R.layout.activity_event_details)
@@ -145,6 +149,15 @@ class EventDetailsActivity : AppCompatActivity() {
         }
     }
 
+    private fun timestampFromExtras(secondsKey: String, nanosecondsKey: String): Timestamp? {
+        val seconds = intent.getLongExtra(secondsKey, NO_TIMESTAMP)
+        if (seconds == NO_TIMESTAMP) {
+            return null
+        }
+
+        return Timestamp(seconds, intent.getIntExtra(nanosecondsKey, 0))
+    }
+
     private fun navigateToLogin() {
         val loginIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -159,6 +172,12 @@ class EventDetailsActivity : AppCompatActivity() {
         private const val EXTRA_DESCRIPTION = "extra_description"
         private const val EXTRA_DATE = "extra_date"
         private const val EXTRA_LOCATION = "extra_location"
+        private const val EXTRA_CATEGORY = "extra_category"
+        private const val EXTRA_STARTS_AT_SECONDS = "extra_starts_at_seconds"
+        private const val EXTRA_STARTS_AT_NANOSECONDS = "extra_starts_at_nanoseconds"
+        private const val EXTRA_ENDS_AT_SECONDS = "extra_ends_at_seconds"
+        private const val EXTRA_ENDS_AT_NANOSECONDS = "extra_ends_at_nanoseconds"
+        private const val NO_TIMESTAMP = Long.MIN_VALUE
 
         fun createIntent(context: Context, event: CampusEvent): Intent {
             return Intent(context, EventDetailsActivity::class.java).apply {
@@ -167,6 +186,11 @@ class EventDetailsActivity : AppCompatActivity() {
                 putExtra(EXTRA_DESCRIPTION, event.description)
                 putExtra(EXTRA_DATE, event.date)
                 putExtra(EXTRA_LOCATION, event.location)
+                putExtra(EXTRA_CATEGORY, event.category)
+                putExtra(EXTRA_STARTS_AT_SECONDS, event.startsAt?.seconds ?: NO_TIMESTAMP)
+                putExtra(EXTRA_STARTS_AT_NANOSECONDS, event.startsAt?.nanoseconds ?: 0)
+                putExtra(EXTRA_ENDS_AT_SECONDS, event.endsAt?.seconds ?: NO_TIMESTAMP)
+                putExtra(EXTRA_ENDS_AT_NANOSECONDS, event.endsAt?.nanoseconds ?: 0)
             }
         }
     }

@@ -23,6 +23,9 @@ object EventRegistrationRepository {
             "description" to event.description,
             "date" to event.date,
             "location" to event.location,
+            "category" to event.category,
+            "startsAt" to event.startsAt,
+            "endsAt" to event.endsAt,
             "registeredAt" to FieldValue.serverTimestamp()
         )
 
