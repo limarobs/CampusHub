@@ -1,10 +1,15 @@
-package br.com.uri.campushub
+package br.com.uri.campushub.feature.home.ui
 
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import br.com.uri.campushub.R
+import br.com.uri.campushub.feature.auth.ui.MainActivity
+import br.com.uri.campushub.feature.events.ui.EventsActivity
+import br.com.uri.campushub.feature.events.ui.MyEventsActivity
+import br.com.uri.campushub.feature.profile.ui.ProfileActivity
 import com.google.firebase.auth.FirebaseAuth
 
 class WelcomeActivity : AppCompatActivity() {

@@ -1,9 +1,12 @@
-package br.com.uri.campushub
+package br.com.uri.campushub.feature.profile.ui
 
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import br.com.uri.campushub.R
+import br.com.uri.campushub.feature.auth.ui.MainActivity
+import br.com.uri.campushub.feature.profile.data.UserProfileRepository
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth

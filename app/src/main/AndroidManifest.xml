@@ -11,15 +11,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.CampusHub">
-        <activity android:name=".PasswordRecoveryActivity" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".MyEventsActivity" />
-        <activity android:name=".EventDetailsActivity" />
-        <activity android:name=".EventsActivity" />
-        <activity android:name=".ProfileActivity" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".SignupActivity" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".WelcomeActivity" />
+        <activity android:name=".feature.auth.ui.PasswordRecoveryActivity" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".feature.events.ui.MyEventsActivity" />
+        <activity android:name=".feature.events.ui.EventDetailsActivity" />
+        <activity android:name=".feature.events.ui.EventsActivity" />
+        <activity android:name=".feature.profile.ui.ProfileActivity" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".feature.auth.ui.SignupActivity" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".feature.home.ui.WelcomeActivity" />
         <activity
-            android:name=".MainActivity"
+            android:name=".feature.auth.ui.MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

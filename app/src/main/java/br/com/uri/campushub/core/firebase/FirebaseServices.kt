@@ -1,4 +1,4 @@
-package br.com.uri.campushub
+package br.com.uri.campushub.core.firebase
 
 import com.google.firebase.firestore.FirebaseFirestore
 
