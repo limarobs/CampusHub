@@ -8,6 +8,7 @@ import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.RatingBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -17,6 +18,7 @@ import br.com.uri.campushub.feature.auth.ui.MainActivity
 import br.com.uri.campushub.feature.events.data.EventCommentRepository
 import br.com.uri.campushub.feature.events.data.EventFavoriteRepository
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
+import br.com.uri.campushub.feature.events.data.EventRatingRepository
 import br.com.uri.campushub.feature.events.model.EventComment
 import br.com.uri.campushub.feature.events.model.CampusEvent
 import com.google.android.material.button.MaterialButton
@@ -31,6 +33,10 @@ class EventDetailsActivity : AppCompatActivity() {
 
     private lateinit var registrationButton: MaterialButton
     private lateinit var favoriteButton: MaterialButton
+    private lateinit var ratingBar: RatingBar
+    private lateinit var saveRatingButton: MaterialButton
+    private lateinit var ratingSummary: TextView
+    private lateinit var ratingEligibility: TextView
     private lateinit var commentInput: TextInputEditText
     private lateinit var addCommentButton: MaterialButton
     private lateinit var commentsProgress: ProgressBar
@@ -44,6 +50,7 @@ class EventDetailsActivity : AppCompatActivity() {
     private var isRegistrationStateLoaded = false
     private var isFavorite = false
     private var isFavoriteStateLoaded = false
+    private var isUserRatingLoaded = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,6 +111,14 @@ class EventDetailsActivity : AppCompatActivity() {
             }
         }
 
+        ratingBar = findViewById(R.id.ratingBar)
+        saveRatingButton = findViewById(R.id.btnSaveRating)
+        ratingSummary = findViewById(R.id.tvRatingSummary)
+        ratingEligibility = findViewById(R.id.tvRatingEligibility)
+        ratingBar.isEnabled = false
+        saveRatingButton.isEnabled = false
+        saveRatingButton.setOnClickListener { saveRating() }
+
         commentInput = findViewById(R.id.etNewComment)
         addCommentButton = findViewById(R.id.btnAddComment)
         commentsProgress = findViewById(R.id.progressComments)
@@ -114,6 +129,7 @@ class EventDetailsActivity : AppCompatActivity() {
 
         loadRegistrationState()
         loadFavoriteState()
+        loadRatingsSummary()
         loadComments()
     }
 
@@ -128,6 +144,7 @@ class EventDetailsActivity : AppCompatActivity() {
 
                 if (!task.isSuccessful) {
                     registrationButton.text = "Tentar novamente"
+                    updateRatingEligibility()
                     Toast.makeText(
                         this,
                         "Não foi possível verificar sua inscrição.",
@@ -139,6 +156,7 @@ class EventDetailsActivity : AppCompatActivity() {
                 isRegistered = task.result?.exists() == true
                 isRegistrationStateLoaded = true
                 updateRegistrationButton()
+                updateRatingEligibility()
             }
     }
 
@@ -152,6 +170,7 @@ class EventDetailsActivity : AppCompatActivity() {
             if (task.isSuccessful) {
                 isRegistered = true
                 updateRegistrationButton()
+                updateRatingEligibility()
                 Toast.makeText(this, "Inscrição realizada.", Toast.LENGTH_SHORT).show()
             } else {
                 updateRegistrationButton()
@@ -174,6 +193,7 @@ class EventDetailsActivity : AppCompatActivity() {
             if (task.isSuccessful) {
                 isRegistered = false
                 updateRegistrationButton()
+                updateRatingEligibility()
                 Toast.makeText(this, "Inscrição cancelada.", Toast.LENGTH_SHORT).show()
             } else {
                 updateRegistrationButton()
@@ -268,6 +288,120 @@ class EventDetailsActivity : AppCompatActivity() {
         } else {
             "Adicionar aos favoritos"
         }
+    }
+
+    private fun loadRatingsSummary() {
+        ratingSummary.text = "Carregando avaliações..."
+        EventRatingRepository.getRatings(event.id).addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                ratingSummary.text = "Não foi possível carregar as avaliações."
+                return@addOnCompleteListener
+            }
+
+            val ratings = task.result?.documents.orEmpty()
+                .mapNotNull { document -> document.getLong("rating")?.toInt() }
+                .filter { rating -> rating in 1..5 }
+
+            ratingSummary.text = if (ratings.isEmpty()) {
+                "Ainda não há avaliações para este evento."
+            } else {
+                val average = ratings.average()
+                val countText = if (ratings.size == 1) "avaliação" else "avaliações"
+                "Média: %.1f de 5 (%d %s)".format(average, ratings.size, countText)
+            }
+        }
+    }
+
+    private fun updateRatingEligibility() {
+        if (!hasEventEnded()) {
+            ratingEligibility.text = "As avaliações ficam disponíveis após o encerramento do evento."
+            ratingBar.isEnabled = false
+            saveRatingButton.isEnabled = false
+            return
+        }
+
+        if (!isRegistrationStateLoaded) {
+            ratingEligibility.text = "Verificando sua inscrição para liberar a avaliação..."
+            ratingBar.isEnabled = false
+            saveRatingButton.isEnabled = false
+            return
+        }
+
+        if (!isRegistered) {
+            ratingEligibility.text = "Apenas alunos inscritos podem avaliar este evento."
+            ratingBar.isEnabled = false
+            saveRatingButton.isEnabled = false
+            return
+        }
+
+        ratingEligibility.text = "Escolha uma nota de 1 a 5."
+        loadUserRating()
+    }
+
+    private fun loadUserRating() {
+        isUserRatingLoaded = false
+        ratingBar.isEnabled = false
+        saveRatingButton.isEnabled = false
+        saveRatingButton.text = "Carregando sua avaliação..."
+
+        EventRatingRepository.getRating(event.id, userId).addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                ratingEligibility.text = "Não foi possível verificar sua avaliação."
+                saveRatingButton.text = "Tentar novamente"
+                saveRatingButton.isEnabled = true
+                saveRatingButton.setOnClickListener { loadUserRating() }
+                return@addOnCompleteListener
+            }
+
+            val currentRating = task.result?.getLong("rating")?.toInt()
+            if (currentRating != null && currentRating in 1..5) {
+                ratingBar.rating = currentRating?.toFloat() ?: 0f
+                saveRatingButton.text = "Atualizar avaliação"
+            } else {
+                ratingBar.rating = 0f
+                saveRatingButton.text = "Publicar avaliação"
+            }
+
+            isUserRatingLoaded = true
+            ratingBar.isEnabled = true
+            saveRatingButton.isEnabled = true
+            saveRatingButton.setOnClickListener { saveRating() }
+        }
+    }
+
+    private fun saveRating() {
+        if (!isUserRatingLoaded) {
+            loadUserRating()
+            return
+        }
+
+        val rating = ratingBar.rating.toInt()
+        if (rating !in 1..5) {
+            Toast.makeText(this, "Escolha uma nota de 1 a 5.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        ratingBar.isEnabled = false
+        saveRatingButton.isEnabled = false
+        saveRatingButton.text = "Salvando avaliação..."
+        EventRatingRepository.saveRating(event.id, userId, rating).addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                Toast.makeText(this, "Avaliação salva.", Toast.LENGTH_SHORT).show()
+                loadRatingsSummary()
+                loadUserRating()
+            } else {
+                Toast.makeText(
+                    this,
+                    "Não foi possível salvar sua avaliação.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                loadUserRating()
+            }
+        }
+    }
+
+    private fun hasEventEnded(): Boolean {
+        return event.endsAt?.toDate()?.before(Date()) == true
     }
 
     private fun loadComments() {
