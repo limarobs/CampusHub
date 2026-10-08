@@ -226,7 +226,7 @@ class EventDetailsActivity : AppCompatActivity() {
                 favoriteButton.text = "Tentar novamente"
                 Toast.makeText(
                     this,
-                    "NÃ£o foi possÃ­vel verificar seus favoritos.",
+                    "Não foi possível verificar seus favoritos.",
                     Toast.LENGTH_SHORT
                 ).show()
                 return@addOnCompleteListener
@@ -253,7 +253,7 @@ class EventDetailsActivity : AppCompatActivity() {
                 updateFavoriteButton()
                 Toast.makeText(
                     this,
-                    "NÃ£o foi possÃ­vel adicionar aos favoritos.",
+                    "Não foi possível adicionar aos favoritos.",
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -275,7 +275,7 @@ class EventDetailsActivity : AppCompatActivity() {
                 updateFavoriteButton()
                 Toast.makeText(
                     this,
-                    "NÃ£o foi possÃ­vel remover dos favoritos.",
+                    "Não foi possível remover dos favoritos.",
                     Toast.LENGTH_SHORT
                 ).show()
             }
