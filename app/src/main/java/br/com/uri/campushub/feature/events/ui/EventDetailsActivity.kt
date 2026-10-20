@@ -26,6 +26,13 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
+import com.mapbox.geojson.Point
+import com.mapbox.maps.CameraOptions
+import com.mapbox.maps.MapView
+import com.mapbox.maps.Style
+import com.mapbox.maps.plugin.annotation.annotations
+import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
+import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import java.text.DateFormat
 import java.util.Date
 
@@ -69,6 +76,9 @@ class EventDetailsActivity : AppCompatActivity() {
             description = intent.getStringExtra(EXTRA_DESCRIPTION).orEmpty(),
             date = intent.getStringExtra(EXTRA_DATE).orEmpty(),
             location = intent.getStringExtra(EXTRA_LOCATION).orEmpty(),
+            address = intent.getStringExtra(EXTRA_ADDRESS).orEmpty(),
+            latitude = coordinateFromExtra(EXTRA_LATITUDE),
+            longitude = coordinateFromExtra(EXTRA_LONGITUDE),
             category = intent.getStringExtra(EXTRA_CATEGORY) ?: "Sem categoria",
             startsAt = timestampFromExtras(EXTRA_STARTS_AT_SECONDS, EXTRA_STARTS_AT_NANOSECONDS),
             endsAt = timestampFromExtras(EXTRA_ENDS_AT_SECONDS, EXTRA_ENDS_AT_NANOSECONDS)
@@ -88,6 +98,9 @@ class EventDetailsActivity : AppCompatActivity() {
             event.date
         findViewById<TextView>(R.id.tvEventDetailsLocation).text =
             event.location
+        findViewById<TextView>(R.id.tvEventDetailsAddress).text =
+            event.address.ifBlank { "Endereço não informado." }
+        showEventMap()
 
         registrationButton = findViewById(R.id.btnRegistration)
         registrationButton.setOnClickListener {
@@ -561,6 +574,40 @@ class EventDetailsActivity : AppCompatActivity() {
         return Timestamp(seconds, intent.getIntExtra(nanosecondsKey, 0))
     }
 
+    private fun coordinateFromExtra(key: String): Double? {
+        return intent.getDoubleExtra(key, Double.NaN).takeUnless(Double::isNaN)
+    }
+
+    private fun showEventMap() {
+        val mapContainer = findViewById<View>(R.id.eventMapContainer)
+        if (!event.hasValidCoordinates()) {
+            mapContainer.visibility = View.GONE
+            return
+        }
+
+        val eventPoint = Point.fromLngLat(event.longitude!!, event.latitude!!)
+        val mapView = findViewById<MapView>(R.id.eventMapView)
+        mapView.mapboxMap.loadStyle(Style.MAPBOX_STREETS) {
+            mapView.annotations.createPointAnnotationManager().create(
+                PointAnnotationOptions()
+                    .withPoint(eventPoint)
+                    .withTextField(event.title)
+            )
+            mapView.mapboxMap.setCamera(
+                CameraOptions.Builder()
+                    .center(eventPoint)
+                    .zoom(16.0)
+                    .build()
+            )
+        }
+    }
+
+    private fun CampusEvent.hasValidCoordinates(): Boolean {
+        val eventLatitude = latitude ?: return false
+        val eventLongitude = longitude ?: return false
+        return eventLatitude in -90.0..90.0 && eventLongitude in -180.0..180.0
+    }
+
     private fun navigateToLogin() {
         val loginIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -575,6 +622,9 @@ class EventDetailsActivity : AppCompatActivity() {
         private const val EXTRA_DESCRIPTION = "extra_description"
         private const val EXTRA_DATE = "extra_date"
         private const val EXTRA_LOCATION = "extra_location"
+        private const val EXTRA_ADDRESS = "extra_address"
+        private const val EXTRA_LATITUDE = "extra_latitude"
+        private const val EXTRA_LONGITUDE = "extra_longitude"
         private const val EXTRA_CATEGORY = "extra_category"
         private const val EXTRA_STARTS_AT_SECONDS = "extra_starts_at_seconds"
         private const val EXTRA_STARTS_AT_NANOSECONDS = "extra_starts_at_nanoseconds"
@@ -589,6 +639,9 @@ class EventDetailsActivity : AppCompatActivity() {
                 putExtra(EXTRA_DESCRIPTION, event.description)
                 putExtra(EXTRA_DATE, event.date)
                 putExtra(EXTRA_LOCATION, event.location)
+                putExtra(EXTRA_ADDRESS, event.address)
+                putExtra(EXTRA_LATITUDE, event.latitude ?: Double.NaN)
+                putExtra(EXTRA_LONGITUDE, event.longitude ?: Double.NaN)
                 putExtra(EXTRA_CATEGORY, event.category)
                 putExtra(EXTRA_STARTS_AT_SECONDS, event.startsAt?.seconds ?: NO_TIMESTAMP)
                 putExtra(EXTRA_STARTS_AT_NANOSECONDS, event.startsAt?.nanoseconds ?: 0)

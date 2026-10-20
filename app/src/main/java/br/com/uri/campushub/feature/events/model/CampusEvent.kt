@@ -8,6 +8,9 @@ data class CampusEvent(
     val description: String,
     val date: String,
     val location: String,
+    val address: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     val category: String = "Sem categoria",
     val startsAt: Timestamp? = null,
     val endsAt: Timestamp? = null
