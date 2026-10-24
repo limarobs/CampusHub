@@ -2,10 +2,14 @@ package br.com.uri.campushub.feature.events.ui
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.text.InputType
 import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.RatingBar
@@ -13,6 +17,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import br.com.uri.campushub.R
 import br.com.uri.campushub.feature.auth.ui.MainActivity
 import br.com.uri.campushub.feature.events.data.EventCommentRepository
@@ -34,9 +40,21 @@ import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import java.text.DateFormat
+import java.io.File
 import java.util.Date
+import java.util.UUID
+import org.json.JSONArray
+import org.json.JSONObject
 
 class EventDetailsActivity : AppCompatActivity() {
+
+    private data class LocalPhoto(
+        val id: String,
+        val authorId: String,
+        val authorName: String,
+        val createdAt: Long,
+        val path: String
+    )
 
     private lateinit var registrationButton: MaterialButton
     private lateinit var favoriteButton: MaterialButton
@@ -50,6 +68,8 @@ class EventDetailsActivity : AppCompatActivity() {
     private lateinit var commentsContainer: LinearLayout
     private lateinit var emptyCommentsMessage: TextView
     private lateinit var commentsErrorMessage: TextView
+    private lateinit var photosContainer: LinearLayout
+    private lateinit var emptyPhotosMessage: TextView
     private lateinit var authorName: String
     private lateinit var userId: String
     private lateinit var event: CampusEvent
@@ -58,6 +78,24 @@ class EventDetailsActivity : AppCompatActivity() {
     private var isFavorite = false
     private var isFavoriteStateLoaded = false
     private var isUserRatingLoaded = false
+
+    private val takePhotoLauncher = registerForActivityResult(
+        ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) saveCameraPhoto(bitmap)
+    }
+
+    private val selectPhotoLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let(::copyGalleryPhoto)
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) takePhotoLauncher.launch(null)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -124,6 +162,10 @@ class EventDetailsActivity : AppCompatActivity() {
             }
         }
 
+        photosContainer = findViewById(R.id.photosContainer)
+        emptyPhotosMessage = findViewById(R.id.tvEmptyPhotos)
+        findViewById<MaterialButton>(R.id.btnAddPhoto).setOnClickListener { showPhotoOptions() }
+
         ratingBar = findViewById(R.id.ratingBar)
         saveRatingButton = findViewById(R.id.btnSaveRating)
         ratingSummary = findViewById(R.id.tvRatingSummary)
@@ -143,6 +185,7 @@ class EventDetailsActivity : AppCompatActivity() {
         loadRegistrationState()
         loadFavoriteState()
         loadRatingsSummary()
+        loadPhotos()
         loadComments()
     }
 
@@ -417,6 +460,161 @@ class EventDetailsActivity : AppCompatActivity() {
         return event.endsAt?.toDate()?.before(Date()) == true
     }
 
+    private fun showPhotoOptions() {
+        AlertDialog.Builder(this)
+            .setTitle("Adicionar foto")
+            .setItems(arrayOf("Tirar foto", "Escolher da galeria")) { _, option ->
+                if (option == 0) requestCameraPhoto() else selectPhotoLauncher.launch("image/*")
+            }
+            .show()
+    }
+
+    private fun requestCameraPhoto() {
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            takePhotoLauncher.launch(null)
+        } else {
+            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun saveCameraPhoto(bitmap: Bitmap) {
+        val photoFile = createPhotoFile()
+        if (photoFile.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }) {
+            addPhoto(photoFile)
+        } else {
+            photoFile.delete()
+        }
+    }
+
+    private fun copyGalleryPhoto(sourceUri: android.net.Uri) {
+        val photoFile = createPhotoFile()
+        try {
+            contentResolver.openInputStream(sourceUri)?.use { input ->
+                photoFile.outputStream().use(input::copyTo)
+            } ?: error("Imagem indisponível")
+            addPhoto(photoFile)
+        } catch (_: Exception) {
+            photoFile.delete()
+            Toast.makeText(this, "Não foi possível adicionar a foto.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun createPhotoFile(): File {
+        val directory = File(filesDir, "event_photos").apply { mkdirs() }
+        return File(directory, "${UUID.randomUUID()}.jpg")
+    }
+
+    private fun addPhoto(photoFile: File) {
+        val photos = readPhotos()
+        photos.add(
+            0,
+            LocalPhoto(
+                id = UUID.randomUUID().toString(),
+                authorId = userId,
+                authorName = authorName,
+                createdAt = System.currentTimeMillis(),
+                path = photoFile.absolutePath
+            )
+        )
+        savePhotos(photos)
+        loadPhotos()
+    }
+
+    private fun loadPhotos() {
+        photosContainer.removeAllViews()
+        val photos = readPhotos().filter { File(it.path).isFile }
+        emptyPhotosMessage.visibility = if (photos.isEmpty()) View.VISIBLE else View.GONE
+        photos.forEach(::addPhotoView)
+    }
+
+    private fun addPhotoView(photo: LocalPhoto) {
+        val item = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16.dp(), 16.dp(), 16.dp(), 16.dp())
+            setBackgroundColor(getColor(R.color.surface))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = 12.dp() }
+        }
+        item.addView(TextView(this).apply {
+            text = photo.authorName
+            textSize = 16f
+            setTextColor(getColor(R.color.text_primary))
+        })
+        item.addView(TextView(this).apply {
+            text = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+                .format(Date(photo.createdAt))
+            textSize = 12f
+            setTextColor(getColor(R.color.text_secondary))
+        })
+        item.addView(ImageView(this).apply {
+            setImageURI(android.net.Uri.fromFile(File(photo.path)))
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            contentDescription = "Foto publicada no evento"
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                220.dp()
+            ).apply { topMargin = 12.dp() }
+        })
+        if (photo.authorId == userId) {
+            item.addView(MaterialButton(this).apply {
+                text = "Excluir"
+                setOnClickListener { deletePhoto(photo) }
+            })
+        }
+        photosContainer.addView(item)
+    }
+
+    private fun deletePhoto(photo: LocalPhoto) {
+        readPhotos().filterNot { it.id == photo.id }.also(::savePhotos)
+        File(photo.path).delete()
+        loadPhotos()
+    }
+
+    private fun readPhotos(): MutableList<LocalPhoto> {
+        return try {
+            val saved = getSharedPreferences(PHOTO_PREFERENCES, MODE_PRIVATE)
+                .getString("photos_${event.id}", "[]")
+            val json = JSONArray(saved)
+            MutableList(json.length()) { index ->
+                json.getJSONObject(index).let {
+                    LocalPhoto(
+                        it.getString("id"),
+                        it.getString("authorId"),
+                        it.getString("authorName"),
+                        it.getLong("createdAt"),
+                        it.getString("path")
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            mutableListOf()
+        }
+    }
+
+    private fun savePhotos(photos: List<LocalPhoto>) {
+        val json = JSONArray()
+        photos.forEach { photo ->
+            json.put(
+                JSONObject()
+                    .put("id", photo.id)
+                    .put("authorId", photo.authorId)
+                    .put("authorName", photo.authorName)
+                    .put("createdAt", photo.createdAt)
+                    .put("path", photo.path)
+            )
+        }
+        getSharedPreferences(PHOTO_PREFERENCES, MODE_PRIVATE)
+            .edit()
+            .putString("photos_${event.id}", json.toString())
+            .apply()
+    }
+
+    private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
+
     private fun loadComments() {
         commentsProgress.visibility = View.VISIBLE
         commentsContainer.removeAllViews()
@@ -617,6 +815,7 @@ class EventDetailsActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val PHOTO_PREFERENCES = "event_photos"
         private const val EXTRA_EVENT_ID = "extra_event_id"
         private const val EXTRA_TITLE = "extra_title"
         private const val EXTRA_DESCRIPTION = "extra_description"
