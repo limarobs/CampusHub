@@ -4,7 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.view.View
 import android.view.ViewGroup
@@ -13,6 +17,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.RatingBar
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -56,6 +61,14 @@ class EventDetailsActivity : AppCompatActivity() {
         val path: String
     )
 
+    private data class LocalAudio(
+        val id: String,
+        val authorId: String,
+        val authorName: String,
+        val createdAt: Long,
+        val path: String
+    )
+
     private lateinit var registrationButton: MaterialButton
     private lateinit var favoriteButton: MaterialButton
     private lateinit var ratingBar: RatingBar
@@ -70,6 +83,10 @@ class EventDetailsActivity : AppCompatActivity() {
     private lateinit var commentsErrorMessage: TextView
     private lateinit var photosContainer: LinearLayout
     private lateinit var emptyPhotosMessage: TextView
+    private lateinit var recordAudioButton: MaterialButton
+    private lateinit var recordingTime: TextView
+    private lateinit var audiosContainer: LinearLayout
+    private lateinit var emptyAudiosMessage: TextView
     private lateinit var authorName: String
     private lateinit var userId: String
     private lateinit var event: CampusEvent
@@ -78,6 +95,13 @@ class EventDetailsActivity : AppCompatActivity() {
     private var isFavorite = false
     private var isFavoriteStateLoaded = false
     private var isUserRatingLoaded = false
+    private var audioRecorder: MediaRecorder? = null
+    private var audioPlayer: MediaPlayer? = null
+    private var recordingFile: File? = null
+    private val audioHandler = Handler(Looper.getMainLooper())
+    private var recordingStartedAt = 0L
+    private var recordingTimer: Runnable? = null
+    private var playingTimer: Runnable? = null
 
     private val takePhotoLauncher = registerForActivityResult(
         ActivityResultContracts.TakePicturePreview()
@@ -165,6 +189,11 @@ class EventDetailsActivity : AppCompatActivity() {
         photosContainer = findViewById(R.id.photosContainer)
         emptyPhotosMessage = findViewById(R.id.tvEmptyPhotos)
         findViewById<MaterialButton>(R.id.btnAddPhoto).setOnClickListener { showPhotoOptions() }
+        recordAudioButton = findViewById(R.id.btnRecordAudio)
+        recordingTime = findViewById(R.id.tvRecordingTime)
+        audiosContainer = findViewById(R.id.audiosContainer)
+        emptyAudiosMessage = findViewById(R.id.tvEmptyAudios)
+        recordAudioButton.setOnClickListener { requestOrToggleAudioRecording() }
 
         ratingBar = findViewById(R.id.ratingBar)
         saveRatingButton = findViewById(R.id.btnSaveRating)
@@ -186,6 +215,7 @@ class EventDetailsActivity : AppCompatActivity() {
         loadFavoriteState()
         loadRatingsSummary()
         loadPhotos()
+        loadAudios()
         loadComments()
     }
 
@@ -615,6 +645,198 @@ class EventDetailsActivity : AppCompatActivity() {
 
     private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
 
+    private fun requestOrToggleAudioRecording() {
+        if (audioRecorder != null) {
+            stopAudioRecording()
+        } else if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            startAudioRecording()
+        } else {
+            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
+        }
+    }
+
+    private fun startAudioRecording() {
+        val file = File(filesDir, "event_audios").apply { mkdirs() }
+            .let { File(it, "${UUID.randomUUID()}.m4a") }
+        try {
+            audioRecorder = MediaRecorder().apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setOutputFile(file.absolutePath)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                prepare()
+                start()
+            }
+            recordingFile = file
+            recordAudioButton.text = "Parar gravação"
+            recordingStartedAt = System.currentTimeMillis()
+            recordingTime.visibility = View.VISIBLE
+            updateRecordingTime()
+        } catch (_: Exception) {
+            file.delete()
+            audioRecorder?.release()
+            audioRecorder = null
+            Toast.makeText(this, "Não foi possível iniciar a gravação.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun stopAudioRecording() {
+        val file = recordingFile
+        try {
+            audioRecorder?.stop()
+            if (file != null) {
+                val audios = readAudios()
+                audios.add(0, LocalAudio(UUID.randomUUID().toString(), userId, authorName, System.currentTimeMillis(), file.absolutePath))
+                saveAudios(audios)
+            }
+        } catch (_: Exception) {
+            file?.delete()
+        } finally {
+            audioRecorder?.release()
+            audioRecorder = null
+            recordingFile = null
+            recordAudioButton.text = "Gravar áudio"
+            recordingTimer?.let(audioHandler::removeCallbacks)
+            recordingTime.visibility = View.GONE
+            loadAudios()
+        }
+    }
+
+    private fun updateRecordingTime() {
+        recordingTime.text = "Gravando: ${formatAudioTime(System.currentTimeMillis() - recordingStartedAt)}"
+        recordingTimer = Runnable { updateRecordingTime() }
+        audioHandler.postDelayed(recordingTimer!!, 500)
+    }
+
+    private fun loadAudios() {
+        audiosContainer.removeAllViews()
+        val audios = readAudios().filter { File(it.path).isFile }
+        emptyAudiosMessage.visibility = if (audios.isEmpty()) View.VISIBLE else View.GONE
+        audios.forEach(::addAudioView)
+    }
+
+    private fun addAudioView(audio: LocalAudio) {
+        val item = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16.dp(), 16.dp(), 16.dp(), 16.dp())
+            setBackgroundColor(getColor(R.color.surface))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = 12.dp() }
+        }
+        item.addView(TextView(this).apply {
+            text = audio.authorName
+            textSize = 16f
+            setTextColor(getColor(R.color.text_primary))
+        })
+        item.addView(TextView(this).apply {
+            text = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(audio.createdAt))
+            textSize = 12f
+            setTextColor(getColor(R.color.text_secondary))
+        })
+        val progress = SeekBar(this).apply {
+            isEnabled = false
+            max = 1
+        }
+        val duration = TextView(this).apply {
+            text = "0:00 / --:--"
+            textSize = 12f
+            setTextColor(getColor(R.color.text_secondary))
+        }
+        val playButton = MaterialButton(this).apply {
+            text = "Reproduzir"
+        }
+        playButton.setOnClickListener { playAudio(audio.path, progress, duration, playButton) }
+        item.addView(progress)
+        item.addView(duration)
+        item.addView(playButton)
+        if (audio.authorId == userId) {
+            item.addView(MaterialButton(this).apply {
+                text = "Excluir"
+                setOnClickListener {
+                    readAudios().filterNot { it.id == audio.id }.also(::saveAudios)
+                    File(audio.path).delete()
+                    loadAudios()
+                }
+            })
+        }
+        audiosContainer.addView(item)
+    }
+
+    private fun playAudio(path: String, progress: SeekBar, durationText: TextView, playButton: MaterialButton) {
+        audioPlayer?.release()
+        playingTimer?.let(audioHandler::removeCallbacks)
+        audioPlayer = MediaPlayer().apply {
+            setDataSource(path)
+            prepare()
+            progress.max = duration
+            durationText.text = "0:00 / ${formatAudioTime(duration.toLong())}"
+            playButton.text = "Reproduzindo"
+            setOnCompletionListener {
+                audioHandler.removeCallbacks(playingTimer!!)
+                progress.progress = 0
+                durationText.text = "0:00 / ${formatAudioTime(duration.toLong())}"
+                playButton.text = "Reproduzir"
+                release()
+                audioPlayer = null
+            }
+            start()
+        }
+        updatePlayingTime(progress, durationText)
+    }
+
+    private fun updatePlayingTime(progress: SeekBar, durationText: TextView) {
+        val player = audioPlayer ?: return
+        progress.progress = player.currentPosition
+        durationText.text = "${formatAudioTime(player.currentPosition.toLong())} / ${formatAudioTime(player.duration.toLong())}"
+        playingTimer = Runnable { updatePlayingTime(progress, durationText) }
+        audioHandler.postDelayed(playingTimer!!, 250)
+    }
+
+    private fun formatAudioTime(milliseconds: Long): String {
+        val totalSeconds = milliseconds / 1000
+        return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
+    }
+
+    private fun readAudios(): MutableList<LocalAudio> = try {
+        val json = JSONArray(getSharedPreferences(AUDIO_PREFERENCES, MODE_PRIVATE)
+            .getString("audios_${event.id}", "[]"))
+        MutableList(json.length()) { index -> json.getJSONObject(index).let {
+            LocalAudio(it.getString("id"), it.getString("authorId"), it.getString("authorName"),
+                it.getLong("createdAt"), it.getString("path"))
+        } }
+    } catch (_: Exception) { mutableListOf() }
+
+    private fun saveAudios(audios: List<LocalAudio>) {
+        val json = JSONArray()
+        audios.forEach { audio -> json.put(JSONObject()
+            .put("id", audio.id).put("authorId", audio.authorId).put("authorName", audio.authorName)
+            .put("createdAt", audio.createdAt).put("path", audio.path)) }
+        getSharedPreferences(AUDIO_PREFERENCES, MODE_PRIVATE).edit()
+            .putString("audios_${event.id}", json.toString()).apply()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_RECORD_AUDIO && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            startAudioRecording()
+        }
+    }
+
+    override fun onDestroy() {
+        recordingTimer?.let(audioHandler::removeCallbacks)
+        playingTimer?.let(audioHandler::removeCallbacks)
+        audioRecorder?.release()
+        audioPlayer?.release()
+        super.onDestroy()
+    }
+
     private fun loadComments() {
         commentsProgress.visibility = View.VISIBLE
         commentsContainer.removeAllViews()
@@ -816,6 +1038,8 @@ class EventDetailsActivity : AppCompatActivity() {
 
     companion object {
         private const val PHOTO_PREFERENCES = "event_photos"
+        private const val AUDIO_PREFERENCES = "event_audios"
+        private const val REQUEST_RECORD_AUDIO = 2
         private const val EXTRA_EVENT_ID = "extra_event_id"
         private const val EXTRA_TITLE = "extra_title"
         private const val EXTRA_DESCRIPTION = "extra_description"
