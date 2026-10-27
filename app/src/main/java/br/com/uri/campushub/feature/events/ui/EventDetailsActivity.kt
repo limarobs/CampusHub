@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.MediaPlayer
 import android.media.MediaRecorder
+import android.provider.MediaStore
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -20,6 +21,7 @@ import android.widget.RatingBar
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.VideoView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -69,6 +71,14 @@ class EventDetailsActivity : AppCompatActivity() {
         val path: String
     )
 
+    private data class LocalVideo(
+        val id: String,
+        val authorId: String,
+        val authorName: String,
+        val createdAt: Long,
+        val path: String
+    )
+
     private lateinit var registrationButton: MaterialButton
     private lateinit var favoriteButton: MaterialButton
     private lateinit var ratingBar: RatingBar
@@ -83,6 +93,8 @@ class EventDetailsActivity : AppCompatActivity() {
     private lateinit var commentsErrorMessage: TextView
     private lateinit var photosContainer: LinearLayout
     private lateinit var emptyPhotosMessage: TextView
+    private lateinit var videosContainer: LinearLayout
+    private lateinit var emptyVideosMessage: TextView
     private lateinit var recordAudioButton: MaterialButton
     private lateinit var recordingTime: TextView
     private lateinit var audiosContainer: LinearLayout
@@ -119,6 +131,24 @@ class EventDetailsActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) takePhotoLauncher.launch(null)
+    }
+
+    private val selectVideoLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let(::copyVideo)
+    }
+
+    private val recordVideoLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        result.data?.data?.let(::copyVideo)
+    }
+
+    private val videoCameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) recordVideo()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -189,6 +219,9 @@ class EventDetailsActivity : AppCompatActivity() {
         photosContainer = findViewById(R.id.photosContainer)
         emptyPhotosMessage = findViewById(R.id.tvEmptyPhotos)
         findViewById<MaterialButton>(R.id.btnAddPhoto).setOnClickListener { showPhotoOptions() }
+        videosContainer = findViewById(R.id.videosContainer)
+        emptyVideosMessage = findViewById(R.id.tvEmptyVideos)
+        findViewById<MaterialButton>(R.id.btnAddVideo).setOnClickListener { showVideoOptions() }
         recordAudioButton = findViewById(R.id.btnRecordAudio)
         recordingTime = findViewById(R.id.tvRecordingTime)
         audiosContainer = findViewById(R.id.audiosContainer)
@@ -215,6 +248,7 @@ class EventDetailsActivity : AppCompatActivity() {
         loadFavoriteState()
         loadRatingsSummary()
         loadPhotos()
+        loadVideos()
         loadAudios()
         loadComments()
     }
@@ -643,6 +677,115 @@ class EventDetailsActivity : AppCompatActivity() {
             .apply()
     }
 
+    private fun showVideoOptions() {
+        AlertDialog.Builder(this)
+            .setTitle("Adicionar vídeo")
+            .setItems(arrayOf("Gravar vídeo", "Escolher da galeria")) { _, option ->
+                if (option == 0) requestCameraVideo() else selectVideoLauncher.launch("video/*")
+            }
+            .show()
+    }
+
+    private fun requestCameraVideo() {
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            recordVideo()
+        } else {
+            videoCameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun recordVideo() {
+        recordVideoLauncher.launch(Intent(MediaStore.ACTION_VIDEO_CAPTURE).apply {
+            putExtra(MediaStore.EXTRA_DURATION_LIMIT, 30)
+        })
+    }
+
+    private fun copyVideo(sourceUri: android.net.Uri) {
+        val videoFile = File(File(filesDir, "event_videos").apply { mkdirs() }, "${UUID.randomUUID()}.mp4")
+        try {
+            contentResolver.openInputStream(sourceUri)?.use { input ->
+                videoFile.outputStream().use(input::copyTo)
+            } ?: error("Vídeo indisponível")
+            addVideo(videoFile)
+        } catch (_: Exception) {
+            videoFile.delete()
+            Toast.makeText(this, "Não foi possível adicionar o vídeo.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun addVideo(videoFile: File) {
+        val videos = readVideos()
+        videos.add(0, LocalVideo(UUID.randomUUID().toString(), userId, authorName, System.currentTimeMillis(), videoFile.absolutePath))
+        saveVideos(videos)
+        loadVideos()
+    }
+
+    private fun loadVideos() {
+        videosContainer.removeAllViews()
+        val videos = readVideos().filter { File(it.path).isFile }
+        emptyVideosMessage.visibility = if (videos.isEmpty()) View.VISIBLE else View.GONE
+        videos.forEach(::addVideoView)
+    }
+
+    private fun addVideoView(video: LocalVideo) {
+        val item = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16.dp(), 16.dp(), 16.dp(), 16.dp())
+            setBackgroundColor(getColor(R.color.surface))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = 12.dp() }
+        }
+        item.addView(TextView(this).apply {
+            text = video.authorName
+            textSize = 16f
+            setTextColor(getColor(R.color.text_primary))
+        })
+        item.addView(TextView(this).apply {
+            text = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(video.createdAt))
+            textSize = 12f
+            setTextColor(getColor(R.color.text_secondary))
+        })
+        val videoView = VideoView(this).apply {
+            setVideoURI(android.net.Uri.fromFile(File(video.path)))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 220.dp()).apply { topMargin = 12.dp() }
+        }
+        item.addView(videoView)
+        item.addView(MaterialButton(this).apply {
+            text = "Assistir"
+            setOnClickListener { videoView.start() }
+        })
+        if (video.authorId == userId) {
+            item.addView(MaterialButton(this).apply {
+                text = "Excluir"
+                setOnClickListener {
+                    readVideos().filterNot { it.id == video.id }.also(::saveVideos)
+                    File(video.path).delete()
+                    loadVideos()
+                }
+            })
+        }
+        videosContainer.addView(item)
+    }
+
+    private fun readVideos(): MutableList<LocalVideo> = try {
+        val json = JSONArray(getSharedPreferences(VIDEO_PREFERENCES, MODE_PRIVATE).getString("videos_${event.id}", "[]"))
+        MutableList(json.length()) { index -> json.getJSONObject(index).let {
+            LocalVideo(it.getString("id"), it.getString("authorId"), it.getString("authorName"),
+                it.getLong("createdAt"), it.getString("path"))
+        } }
+    } catch (_: Exception) { mutableListOf() }
+
+    private fun saveVideos(videos: List<LocalVideo>) {
+        val json = JSONArray()
+        videos.forEach { video -> json.put(JSONObject()
+            .put("id", video.id).put("authorId", video.authorId).put("authorName", video.authorName)
+            .put("createdAt", video.createdAt).put("path", video.path)) }
+        getSharedPreferences(VIDEO_PREFERENCES, MODE_PRIVATE).edit()
+            .putString("videos_${event.id}", json.toString()).apply()
+    }
+
     private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
 
     private fun requestOrToggleAudioRecording() {
@@ -1039,6 +1182,7 @@ class EventDetailsActivity : AppCompatActivity() {
     companion object {
         private const val PHOTO_PREFERENCES = "event_photos"
         private const val AUDIO_PREFERENCES = "event_audios"
+        private const val VIDEO_PREFERENCES = "event_videos"
         private const val REQUEST_RECORD_AUDIO = 2
         private const val EXTRA_EVENT_ID = "extra_event_id"
         private const val EXTRA_TITLE = "extra_title"
