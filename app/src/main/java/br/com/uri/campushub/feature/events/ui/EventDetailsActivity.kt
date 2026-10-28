@@ -26,14 +26,13 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.activity.viewModels
 import br.com.uri.campushub.R
 import br.com.uri.campushub.feature.auth.ui.MainActivity
 import br.com.uri.campushub.feature.events.data.EventCommentRepository
-import br.com.uri.campushub.feature.events.data.EventFavoriteRepository
-import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
-import br.com.uri.campushub.feature.events.data.EventRatingRepository
 import br.com.uri.campushub.feature.events.model.EventComment
 import br.com.uri.campushub.feature.events.model.CampusEvent
+import br.com.uri.campushub.feature.events.viewmodel.EventDetailsViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.Timestamp
@@ -102,11 +101,7 @@ class EventDetailsActivity : AppCompatActivity() {
     private lateinit var authorName: String
     private lateinit var userId: String
     private lateinit var event: CampusEvent
-    private var isRegistered = false
-    private var isRegistrationStateLoaded = false
-    private var isFavorite = false
-    private var isFavoriteStateLoaded = false
-    private var isUserRatingLoaded = false
+    private val detailsViewModel: EventDetailsViewModel by viewModels()
     private var audioRecorder: MediaRecorder? = null
     private var audioPlayer: MediaPlayer? = null
     private var recordingFile: File? = null
@@ -195,26 +190,10 @@ class EventDetailsActivity : AppCompatActivity() {
         showEventMap()
 
         registrationButton = findViewById(R.id.btnRegistration)
-        registrationButton.setOnClickListener {
-            if (!isRegistrationStateLoaded) {
-                loadRegistrationState()
-            } else if (isRegistered) {
-                cancelRegistration()
-            } else {
-                registerForEvent()
-            }
-        }
+        registrationButton.setOnClickListener { detailsViewModel.toggleRegistration() }
 
         favoriteButton = findViewById(R.id.btnFavorite)
-        favoriteButton.setOnClickListener {
-            if (!isFavoriteStateLoaded) {
-                loadFavoriteState()
-            } else if (isFavorite) {
-                removeFavorite()
-            } else {
-                addFavorite()
-            }
-        }
+        favoriteButton.setOnClickListener { detailsViewModel.toggleFavorite() }
 
         photosContainer = findViewById(R.id.photosContainer)
         emptyPhotosMessage = findViewById(R.id.tvEmptyPhotos)
@@ -234,7 +213,7 @@ class EventDetailsActivity : AppCompatActivity() {
         ratingEligibility = findViewById(R.id.tvRatingEligibility)
         ratingBar.isEnabled = false
         saveRatingButton.isEnabled = false
-        saveRatingButton.setOnClickListener { saveRating() }
+        saveRatingButton.setOnClickListener { detailsViewModel.saveRating(ratingBar.rating.toInt()) }
 
         commentInput = findViewById(R.id.etNewComment)
         addCommentButton = findViewById(R.id.btnAddComment)
@@ -244,172 +223,33 @@ class EventDetailsActivity : AppCompatActivity() {
         commentsErrorMessage = findViewById(R.id.tvCommentsError)
         addCommentButton.setOnClickListener { addComment() }
 
-        loadRegistrationState()
-        loadFavoriteState()
-        loadRatingsSummary()
+        observeDetailsState()
+        detailsViewModel.start(userId, event)
         loadPhotos()
         loadVideos()
         loadAudios()
         loadComments()
     }
 
-    private fun loadRegistrationState() {
-        isRegistrationStateLoaded = false
-        registrationButton.isEnabled = false
-        registrationButton.text = "Verificando inscrição..."
-
-        EventRegistrationRepository.getRegistration(userId, event.id)
-            .addOnCompleteListener { task ->
-                registrationButton.isEnabled = true
-
-                if (!task.isSuccessful) {
-                    registrationButton.text = "Tentar novamente"
-                    updateRatingEligibility()
-                    Toast.makeText(
-                        this,
-                        "Não foi possível verificar sua inscrição.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    return@addOnCompleteListener
-                }
-
-                isRegistered = task.result?.exists() == true
-                isRegistrationStateLoaded = true
-                updateRegistrationButton()
-                updateRatingEligibility()
-            }
-    }
-
-    private fun registerForEvent() {
-        registrationButton.isEnabled = false
-        registrationButton.text = "Inscrevendo..."
-
-        EventRegistrationRepository.register(userId, event).addOnCompleteListener { task ->
-            registrationButton.isEnabled = true
-
-            if (task.isSuccessful) {
-                isRegistered = true
-                updateRegistrationButton()
-                updateRatingEligibility()
-                Toast.makeText(this, "Inscrição realizada.", Toast.LENGTH_SHORT).show()
-            } else {
-                updateRegistrationButton()
-                Toast.makeText(
-                    this,
-                    "Não foi possível realizar a inscrição.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
+    private fun observeDetailsState() {
+        detailsViewModel.uiState.observe(this) { state ->
+            registrationButton.text = state.registrationText
+            registrationButton.isEnabled = state.registrationEnabled
+            favoriteButton.text = state.favoriteText
+            favoriteButton.isEnabled = state.favoriteEnabled
+            ratingSummary.text = state.ratingSummary
+            ratingEligibility.text = state.ratingEligibility
+            ratingBar.rating = state.rating
+            ratingBar.isEnabled = state.ratingEnabled
+            saveRatingButton.text = state.ratingButtonText
+            saveRatingButton.isEnabled = state.ratingButtonEnabled
+        }
+        detailsViewModel.message.observe(this) { message ->
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun cancelRegistration() {
-        registrationButton.isEnabled = false
-        registrationButton.text = "Cancelando inscrição..."
-
-        EventRegistrationRepository.cancel(userId, event.id).addOnCompleteListener { task ->
-            registrationButton.isEnabled = true
-
-            if (task.isSuccessful) {
-                isRegistered = false
-                updateRegistrationButton()
-                updateRatingEligibility()
-                Toast.makeText(this, "Inscrição cancelada.", Toast.LENGTH_SHORT).show()
-            } else {
-                updateRegistrationButton()
-                Toast.makeText(
-                    this,
-                    "Não foi possível cancelar a inscrição.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
-    }
-
-    private fun updateRegistrationButton() {
-        registrationButton.text = if (isRegistered) {
-            "Cancelar inscrição"
-        } else {
-            "Inscrever-se"
-        }
-    }
-
-    private fun loadFavoriteState() {
-        isFavoriteStateLoaded = false
-        favoriteButton.isEnabled = false
-        favoriteButton.text = "Verificando favoritos..."
-
-        EventFavoriteRepository.getFavorite(userId, event.id).addOnCompleteListener { task ->
-            favoriteButton.isEnabled = true
-
-            if (!task.isSuccessful) {
-                favoriteButton.text = "Tentar novamente"
-                Toast.makeText(
-                    this,
-                    "Não foi possível verificar seus favoritos.",
-                    Toast.LENGTH_SHORT
-                ).show()
-                return@addOnCompleteListener
-            }
-
-            isFavorite = task.result?.exists() == true
-            isFavoriteStateLoaded = true
-            updateFavoriteButton()
-        }
-    }
-
-    private fun addFavorite() {
-        favoriteButton.isEnabled = false
-        favoriteButton.text = "Adicionando aos favoritos..."
-
-        EventFavoriteRepository.favorite(userId, event).addOnCompleteListener { task ->
-            favoriteButton.isEnabled = true
-
-            if (task.isSuccessful) {
-                isFavorite = true
-                updateFavoriteButton()
-                Toast.makeText(this, "Evento adicionado aos favoritos.", Toast.LENGTH_SHORT).show()
-            } else {
-                updateFavoriteButton()
-                Toast.makeText(
-                    this,
-                    "Não foi possível adicionar aos favoritos.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
-    }
-
-    private fun removeFavorite() {
-        favoriteButton.isEnabled = false
-        favoriteButton.text = "Removendo dos favoritos..."
-
-        EventFavoriteRepository.unfavorite(userId, event.id).addOnCompleteListener { task ->
-            favoriteButton.isEnabled = true
-
-            if (task.isSuccessful) {
-                isFavorite = false
-                updateFavoriteButton()
-                Toast.makeText(this, "Evento removido dos favoritos.", Toast.LENGTH_SHORT).show()
-            } else {
-                updateFavoriteButton()
-                Toast.makeText(
-                    this,
-                    "Não foi possível remover dos favoritos.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
-    }
-
-    private fun updateFavoriteButton() {
-        favoriteButton.text = if (isFavorite) {
-            "Remover dos favoritos"
-        } else {
-            "Adicionar aos favoritos"
-        }
-    }
-
+    /* Legacy Firestore callbacks moved to EventDetailsViewModel.
     private fun loadRatingsSummary() {
         ratingSummary.text = "Carregando avaliações..."
         EventRatingRepository.getRatings(event.id).addOnCompleteListener { task ->
@@ -523,6 +363,7 @@ class EventDetailsActivity : AppCompatActivity() {
     private fun hasEventEnded(): Boolean {
         return event.endsAt?.toDate()?.before(Date()) == true
     }
+    */
 
     private fun showPhotoOptions() {
         AlertDialog.Builder(this)
