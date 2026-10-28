@@ -48,7 +48,10 @@ class EventDetailsViewModel : ViewModel() {
 
     fun toggleRegistration() {
         if (!isRegistrationLoaded) loadRegistration()
-        else if (isRegistered) cancelRegistration() else register()
+        else if (isRegistered) cancelRegistration()
+        else if (hasEventEnded()) {
+            notify("Não é possível se inscrever em um evento encerrado.")
+        } else register()
     }
 
     fun toggleFavorite() {
@@ -89,8 +92,8 @@ class EventDetailsViewModel : ViewModel() {
             isRegistrationLoaded = true
             publish {
                 copy(
-                    registrationEnabled = true,
-                    registrationText = if (isRegistered) "Cancelar inscrição" else "Inscrever-se"
+                    registrationText = registrationButtonText(),
+                    registrationEnabled = isRegistered || !hasEventEnded()
                 )
             }
             updateRatingEligibility()
@@ -98,6 +101,11 @@ class EventDetailsViewModel : ViewModel() {
     }
 
     private fun register() {
+        if (hasEventEnded()) {
+            publish { copy(registrationEnabled = false, registrationText = "Evento encerrado") }
+            notify("Não é possível se inscrever em um evento encerrado.")
+            return
+        }
         publish { copy(registrationEnabled = false, registrationText = "Inscrevendo...") }
         EventRegistrationRepository.register(userId, event).addOnCompleteListener { task ->
             if (task.isSuccessful) {
@@ -106,7 +114,7 @@ class EventDetailsViewModel : ViewModel() {
                 publish { copy(registrationEnabled = true, registrationText = "Cancelar inscrição") }
                 updateRatingEligibility()
             } else {
-                publish { copy(registrationEnabled = true, registrationText = "Inscrever-se") }
+                publish { copy(registrationEnabled = !hasEventEnded(), registrationText = registrationButtonText()) }
                 notify("Não foi possível realizar a inscrição.")
             }
         }
@@ -118,7 +126,12 @@ class EventDetailsViewModel : ViewModel() {
             if (task.isSuccessful) {
                 isRegistered = false
                 notify("Inscrição cancelada.")
-                publish { copy(registrationEnabled = true, registrationText = "Inscrever-se") }
+                publish {
+                    copy(
+                        registrationEnabled = !hasEventEnded(),
+                        registrationText = registrationButtonText()
+                    )
+                }
                 updateRatingEligibility()
             } else {
                 publish { copy(registrationEnabled = true, registrationText = "Cancelar inscrição") }
@@ -262,4 +275,10 @@ class EventDetailsViewModel : ViewModel() {
     }
 
     private fun hasEventEnded() = event.endsAt?.toDate()?.before(java.util.Date()) == true
+
+    private fun registrationButtonText(): String = when {
+        isRegistered -> "Cancelar inscrição"
+        hasEventEnded() -> "Evento encerrado"
+        else -> "Inscrever-se"
+    }
 }
