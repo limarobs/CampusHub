@@ -7,14 +7,6 @@ import br.com.uri.campushub.feature.events.data.EventRepository
 import br.com.uri.campushub.feature.events.model.CampusEvent
 import com.google.firebase.firestore.DocumentSnapshot
 
-private const val ALL_CATEGORIES = "Todas as categorias"
-
-enum class EventStatusFilter {
-    ALL,
-    UPCOMING,
-    ENDED
-}
-
 data class EventsUiState(
     val isLoading: Boolean = false,
     val hasError: Boolean = false,
@@ -33,6 +25,7 @@ class EventsViewModel : ViewModel() {
     private var searchTerm = ""
     private var selectedCategory = ALL_CATEGORIES
     private var selectedStatus = EventStatusFilter.ALL
+    private val eventFilter = EventFilter()
 
     fun loadEvents() {
         _uiState.value = currentState().copy(isLoading = true, hasError = false)
@@ -74,34 +67,14 @@ class EventsViewModel : ViewModel() {
     private fun currentState(): EventsUiState {
         return EventsUiState(
             hasEvents = allEvents.isNotEmpty(),
-            events = allEvents.filter(::matchesFilters),
-            categories = buildCategories(),
+            events = eventFilter.filter(allEvents, searchTerm, selectedCategory, selectedStatus),
+            categories = eventFilter.categories(allEvents),
             selectedCategory = selectedCategory
         )
     }
 
     private fun buildCategories(): List<String> {
-        return listOf(ALL_CATEGORIES) + allEvents
-            .map(CampusEvent::category)
-            .filter { it.isNotBlank() }
-            .distinct()
-            .sorted()
-    }
-
-    private fun matchesFilters(event: CampusEvent): Boolean {
-        val matchesTitle = event.title.contains(searchTerm, ignoreCase = true)
-        val matchesCategory = selectedCategory == ALL_CATEGORIES || event.category == selectedCategory
-        val matchesStatus = when (selectedStatus) {
-            EventStatusFilter.ALL -> true
-            EventStatusFilter.UPCOMING -> !isEventEnded(event)
-            EventStatusFilter.ENDED -> isEventEnded(event)
-        }
-
-        return matchesTitle && matchesCategory && matchesStatus
-    }
-
-    private fun isEventEnded(event: CampusEvent): Boolean {
-        return event.endsAt?.toDate()?.time?.let { it <= System.currentTimeMillis() } == true
+        return eventFilter.categories(allEvents)
     }
 
     private fun toCampusEvent(document: DocumentSnapshot): CampusEvent {

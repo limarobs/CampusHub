@@ -1,12 +1,9 @@
 import java.util.Properties
-import org.gradle.testing.jacoco.tasks.JacocoReport
 
 plugins {
     alias(libs.plugins.android.application)
     id("com.google.gms.google-services")
-    jacoco
 }
-
 val localProperties = Properties().apply {
     val localPropertiesFile = rootProject.file("local.properties")
     if (localPropertiesFile.exists()) {
@@ -43,6 +40,9 @@ android {
             optimization {
                 enable = false
             }
+        }
+        debug {
+            enableUnitTestCoverage = true
         }
     }
     buildFeatures {
@@ -81,25 +81,3 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
 }
 
-tasks.register<JacocoReport>("jacocoTestReport") {
-    dependsOn("testDebugUnitTest")
-
-    reports {
-        xml.required.set(true)
-        html.required.set(true)
-    }
-
-    val excludedClasses = listOf(
-        "**/R.class",
-        "**/R$*.class",
-        "**/BuildConfig.*",
-        "**/Manifest*.*"
-    )
-
-    classDirectories.setFrom(
-        fileTree(layout.buildDirectory.dir("tmp/kotlin-classes/debug")) { exclude(excludedClasses) },
-        fileTree(layout.buildDirectory.dir("intermediates/javac/debug/compileDebugJavaWithJavac/classes")) { exclude(excludedClasses) }
-    )
-    sourceDirectories.setFrom(files("src/main/java"))
-    executionData.setFrom(fileTree(layout.buildDirectory) { include("jacoco/testDebugUnitTest.exec") })
-}

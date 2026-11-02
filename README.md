@@ -116,7 +116,7 @@ Os testes serão organizados em três níveis: unitários para regras de negóci
 
 ```text
 ./gradlew testDebugUnitTest       # testes unitários
-./gradlew jacocoTestReport        # relatório de cobertura em app/build/reports/jacoco
+./gradlew createDebugUnitTestCoverageReport # relatório em app/build/reports/coverage/test/debug
 ./gradlew connectedDebugAndroidTest # testes de integração e E2E
 ```
 
