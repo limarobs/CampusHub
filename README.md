@@ -110,6 +110,16 @@ endsAt: timestamp                       // timestamp
 Login → Eventos → Detalhes → Inscrição/Favorito/Interações → Meus eventos e Meus favoritos
 ```
 
+## Testes
+
+Os testes serão organizados em três níveis: unitários para regras de negócio, integração com o Firebase Emulator Suite e fluxos E2E no emulador Android.
+
+```text
+./gradlew testDebugUnitTest       # testes unitários
+./gradlew jacocoTestReport        # relatório de cobertura em app/build/reports/jacoco
+./gradlew connectedDebugAndroidTest # testes de integração e E2E
+```
+
 ---
 
 Desenvolvido para centralizar a experiência de eventos universitários.
