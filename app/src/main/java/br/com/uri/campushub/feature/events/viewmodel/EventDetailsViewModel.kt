@@ -37,6 +37,7 @@ class EventDetailsViewModel : ViewModel() {
     private var isFavoriteLoaded = false
     private var isUserRatingLoaded = false
     private var isLoadingUserRating = false
+    private val detailsPolicy = EventDetailsPolicy()
 
     fun start(userId: String, event: CampusEvent) {
         this.userId = userId
@@ -64,7 +65,7 @@ class EventDetailsViewModel : ViewModel() {
             loadUserRating()
             return
         }
-        if (rating !in 1..5) {
+        if (!detailsPolicy.isValidRating(rating)) {
             notify("Escolha uma nota de 1 a 5.")
             return
         }
@@ -90,14 +91,14 @@ class EventDetailsViewModel : ViewModel() {
             }
             isRegistered = task.result?.exists() == true
             isRegistrationLoaded = true
-            publish {
-                copy(
-                    registrationText = registrationButtonText(),
-                    registrationEnabled = isRegistered || !hasEventEnded()
-                )
-            }
+            updateRegistrationControl()
             updateRatingEligibility()
         }
+    }
+
+    private fun updateRegistrationControl() {
+        val control = detailsPolicy.registrationControl(isRegistered, hasEventEnded())
+        publish { copy(registrationEnabled = control.enabled, registrationText = control.text) }
     }
 
     private fun register() {
@@ -111,7 +112,7 @@ class EventDetailsViewModel : ViewModel() {
             if (task.isSuccessful) {
                 isRegistered = true
                 notify("Inscrição realizada.")
-                publish { copy(registrationEnabled = true, registrationText = "Cancelar inscrição") }
+                updateRegistrationControl()
                 updateRatingEligibility()
             } else {
                 publish { copy(registrationEnabled = !hasEventEnded(), registrationText = registrationButtonText()) }
@@ -126,12 +127,7 @@ class EventDetailsViewModel : ViewModel() {
             if (task.isSuccessful) {
                 isRegistered = false
                 notify("Inscrição cancelada.")
-                publish {
-                    copy(
-                        registrationEnabled = !hasEventEnded(),
-                        registrationText = registrationButtonText()
-                    )
-                }
+                updateRegistrationControl()
                 updateRatingEligibility()
             } else {
                 publish { copy(registrationEnabled = true, registrationText = "Cancelar inscrição") }
@@ -151,12 +147,7 @@ class EventDetailsViewModel : ViewModel() {
             }
             isFavorite = task.result?.exists() == true
             isFavoriteLoaded = true
-            publish {
-                copy(
-                    favoriteEnabled = true,
-                    favoriteText = if (isFavorite) "Remover dos favoritos" else "Adicionar aos favoritos"
-                )
-            }
+            publish { copy(favoriteEnabled = true, favoriteText = detailsPolicy.favoriteButtonText(isFavorite)) }
         }
     }
 
@@ -166,9 +157,9 @@ class EventDetailsViewModel : ViewModel() {
             if (task.isSuccessful) {
                 isFavorite = true
                 notify("Evento adicionado aos favoritos.")
-                publish { copy(favoriteEnabled = true, favoriteText = "Remover dos favoritos") }
+                publish { copy(favoriteEnabled = true, favoriteText = detailsPolicy.favoriteButtonText(isFavorite)) }
             } else {
-                publish { copy(favoriteEnabled = true, favoriteText = "Adicionar aos favoritos") }
+                publish { copy(favoriteEnabled = true, favoriteText = detailsPolicy.favoriteButtonText(isFavorite)) }
                 notify("Não foi possível adicionar aos favoritos.")
             }
         }
@@ -180,9 +171,9 @@ class EventDetailsViewModel : ViewModel() {
             if (task.isSuccessful) {
                 isFavorite = false
                 notify("Evento removido dos favoritos.")
-                publish { copy(favoriteEnabled = true, favoriteText = "Adicionar aos favoritos") }
+                publish { copy(favoriteEnabled = true, favoriteText = detailsPolicy.favoriteButtonText(isFavorite)) }
             } else {
-                publish { copy(favoriteEnabled = true, favoriteText = "Remover dos favoritos") }
+                publish { copy(favoriteEnabled = true, favoriteText = detailsPolicy.favoriteButtonText(isFavorite)) }
                 notify("Não foi possível remover dos favoritos.")
             }
         }
@@ -207,32 +198,20 @@ class EventDetailsViewModel : ViewModel() {
     }
 
     private fun updateRatingEligibility() {
-        when {
-            !hasEventEnded() -> publish {
-                copy(
-                    ratingEligibility = "As avaliações ficam disponíveis após o encerramento do evento.",
-                    ratingEnabled = false,
-                    ratingButtonEnabled = false
-                )
-            }
-            !isRegistrationLoaded -> publish {
-                copy(
-                    ratingEligibility = "Verificando sua inscrição para liberar a avaliação...",
-                    ratingEnabled = false,
-                    ratingButtonEnabled = false
-                )
-            }
-            !isRegistered -> publish {
-                copy(
-                    ratingEligibility = "Apenas alunos inscritos podem avaliar este evento.",
-                    ratingEnabled = false,
-                    ratingButtonEnabled = false
-                )
-            }
-            else -> {
-                publish { copy(ratingEligibility = "Escolha uma nota de 1 a 5.") }
-                loadUserRating()
-            }
+        val eligibility = detailsPolicy.ratingEligibility(
+            hasEventEnded(),
+            isRegistrationLoaded,
+            isRegistered
+        )
+        publish {
+            copy(
+                ratingEligibility = eligibility.text,
+                ratingEnabled = false,
+                ratingButtonEnabled = false
+            )
+        }
+        if (eligibility.canRate) {
+            loadUserRating()
         }
     }
 
@@ -276,9 +255,6 @@ class EventDetailsViewModel : ViewModel() {
 
     private fun hasEventEnded() = event.endsAt?.toDate()?.before(java.util.Date()) == true
 
-    private fun registrationButtonText(): String = when {
-        isRegistered -> "Cancelar inscrição"
-        hasEventEnded() -> "Evento encerrado"
-        else -> "Inscrever-se"
-    }
+    private fun registrationButtonText(): String =
+        detailsPolicy.registrationControl(isRegistered, hasEventEnded()).text
 }
