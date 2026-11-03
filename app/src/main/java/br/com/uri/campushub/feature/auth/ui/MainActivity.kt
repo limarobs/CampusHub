@@ -2,18 +2,20 @@ package br.com.uri.campushub.feature.auth.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Patterns
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
+import br.com.uri.campushub.feature.auth.domain.AuthInputValidator
+import br.com.uri.campushub.feature.auth.domain.InputField
 import br.com.uri.campushub.feature.home.ui.WelcomeActivity
 import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : AppCompatActivity() {
 
     private val auth = FirebaseAuth.getInstance()
+    private val inputValidator = AuthInputValidator()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,7 +31,16 @@ class MainActivity : AppCompatActivity() {
             val emailValue = emailField.text.toString().trim()
             val passwordValue = passwordField.text.toString()
 
-            if (!hasValidInputs(emailField, passwordField, emailValue, passwordValue)) {
+            val inputError = inputValidator.login(emailValue, passwordValue)
+            if (inputError != null) {
+                when (inputError.field) {
+                    InputField.EMAIL -> emailField
+                    InputField.PASSWORD -> passwordField
+                    InputField.NAME -> emailField
+                }.apply {
+                    error = inputError.message
+                    requestFocus()
+                }
                 return@setOnClickListener
             }
 
@@ -73,26 +84,5 @@ class MainActivity : AppCompatActivity() {
     private fun openWelcomeScreen() {
         startActivity(Intent(this, WelcomeActivity::class.java))
         finish()
-    }
-
-    private fun hasValidInputs(
-        emailField: EditText,
-        passwordField: EditText,
-        emailValue: String,
-        passwordValue: String
-    ): Boolean {
-        if (!Patterns.EMAIL_ADDRESS.matcher(emailValue).matches()) {
-            emailField.error = "Informe um e-mail válido."
-            emailField.requestFocus()
-            return false
-        }
-
-        if (passwordValue.isBlank()) {
-            passwordField.error = "Informe sua senha."
-            passwordField.requestFocus()
-            return false
-        }
-
-        return true
     }
 }

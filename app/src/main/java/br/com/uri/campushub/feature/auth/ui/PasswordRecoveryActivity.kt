@@ -1,10 +1,10 @@
 package br.com.uri.campushub.feature.auth.ui
 
 import android.os.Bundle
-import android.util.Patterns
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
+import br.com.uri.campushub.feature.auth.domain.AuthInputValidator
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
@@ -12,6 +12,7 @@ import com.google.firebase.auth.FirebaseAuth
 class PasswordRecoveryActivity : AppCompatActivity() {
 
     private val auth = FirebaseAuth.getInstance()
+    private val inputValidator = AuthInputValidator()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,8 +28,9 @@ class PasswordRecoveryActivity : AppCompatActivity() {
         sendButton.setOnClickListener {
             val email = emailField.text?.toString()?.trim().orEmpty()
 
-            if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                emailField.error = "Informe um e-mail válido."
+            val inputError = inputValidator.passwordRecovery(email)
+            if (inputError != null) {
+                emailField.error = inputError.message
                 emailField.requestFocus()
                 return@setOnClickListener
             }

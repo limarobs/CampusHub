@@ -2,12 +2,13 @@ package br.com.uri.campushub.feature.auth.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Patterns
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
+import br.com.uri.campushub.feature.auth.domain.AuthInputValidator
+import br.com.uri.campushub.feature.auth.domain.InputField
 import br.com.uri.campushub.feature.home.ui.WelcomeActivity
 import br.com.uri.campushub.feature.profile.data.UserProfileRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -16,6 +17,7 @@ import com.google.firebase.auth.userProfileChangeRequest
 class SignupActivity : AppCompatActivity() {
 
     private val auth = FirebaseAuth.getInstance()
+    private val inputValidator = AuthInputValidator()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,15 +34,16 @@ class SignupActivity : AppCompatActivity() {
             val emailValue = emailField.text.toString().trim()
             val passwordValue = passwordField.text.toString()
 
-            if (!hasValidInputs(
-                    nicknameField,
-                    emailField,
-                    passwordField,
-                    nicknameValue,
-                    emailValue,
-                    passwordValue
-                )
-            ) {
+            val inputError = inputValidator.signup(nicknameValue, emailValue, passwordValue)
+            if (inputError != null) {
+                when (inputError.field) {
+                    InputField.NAME -> nicknameField
+                    InputField.EMAIL -> emailField
+                    InputField.PASSWORD -> passwordField
+                }.apply {
+                    error = inputError.message
+                    requestFocus()
+                }
                 return@setOnClickListener
             }
 
@@ -66,36 +69,6 @@ class SignupActivity : AppCompatActivity() {
             finish()
         }
     }
-
-    private fun hasValidInputs(
-        nicknameField: EditText,
-        emailField: EditText,
-        passwordField: EditText,
-        nicknameValue: String,
-        emailValue: String,
-        passwordValue: String
-    ): Boolean {
-        if (nicknameValue.isBlank()) {
-            nicknameField.error = "Informe seu apelido."
-            nicknameField.requestFocus()
-            return false
-        }
-
-        if (!Patterns.EMAIL_ADDRESS.matcher(emailValue).matches()) {
-            emailField.error = "Informe um e-mail válido."
-            emailField.requestFocus()
-            return false
-        }
-
-        if (passwordValue.length < 6) {
-            passwordField.error = "A senha deve ter pelo menos 6 caracteres."
-            passwordField.requestFocus()
-            return false
-        }
-
-        return true
-    }
-
     private fun saveNickname(nicknameValue: String, signupButton: Button) {
         val currentUser = auth.currentUser
 

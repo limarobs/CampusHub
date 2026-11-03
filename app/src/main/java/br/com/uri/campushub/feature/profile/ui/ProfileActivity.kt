@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
+import br.com.uri.campushub.feature.auth.domain.AuthInputValidator
 import br.com.uri.campushub.feature.auth.ui.MainActivity
 import br.com.uri.campushub.feature.profile.data.UserProfileRepository
 import com.google.android.material.button.MaterialButton
@@ -15,6 +16,7 @@ import com.google.firebase.auth.userProfileChangeRequest
 class ProfileActivity : AppCompatActivity() {
 
     private val auth = FirebaseAuth.getInstance()
+    private val inputValidator = AuthInputValidator()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,8 +42,9 @@ class ProfileActivity : AppCompatActivity() {
         saveButton.setOnClickListener {
             val displayName = nameField.text?.toString()?.trim().orEmpty()
 
-            if (displayName.isBlank()) {
-                nameField.error = "Informe seu nome."
+            val inputError = inputValidator.profile(displayName)
+            if (inputError != null) {
+                nameField.error = inputError.message
                 nameField.requestFocus()
                 return@setOnClickListener
             }
