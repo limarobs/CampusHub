@@ -3,9 +3,6 @@ package br.com.uri.campushub.feature.events.viewmodel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import br.com.uri.campushub.feature.events.data.EventFavoriteRepository
-import br.com.uri.campushub.feature.events.data.EventRatingRepository
-import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
 import br.com.uri.campushub.feature.events.model.CampusEvent
 
 data class EventDetailsUiState(
@@ -21,7 +18,9 @@ data class EventDetailsUiState(
     val ratingButtonEnabled: Boolean = false
 )
 
-class EventDetailsViewModel : ViewModel() {
+class EventDetailsViewModel(
+    private val dataSource: EventDetailsDataSource = FirebaseEventDetailsDataSource
+) : ViewModel() {
 
     private val _uiState = MutableLiveData(EventDetailsUiState())
     val uiState: LiveData<EventDetailsUiState> = _uiState
@@ -71,8 +70,8 @@ class EventDetailsViewModel : ViewModel() {
         }
 
         publish { copy(ratingEnabled = false, ratingButtonEnabled = false, ratingButtonText = "Salvando avaliação...") }
-        EventRatingRepository.saveRating(event.id, userId, rating).addOnCompleteListener { task ->
-            if (task.isSuccessful) notify("Avaliação salva.") else notify("Não foi possível salvar a avaliação.")
+        dataSource.saveRating(event.id, userId, rating) { result ->
+            if (result.isSuccess) notify("Avaliação salva.") else notify("Não foi possível salvar a avaliação.")
             isUserRatingLoaded = false
             loadRatingsSummary()
             loadUserRating()
@@ -82,14 +81,14 @@ class EventDetailsViewModel : ViewModel() {
     private fun loadRegistration() {
         isRegistrationLoaded = false
         publish { copy(registrationEnabled = false, registrationText = "Verificando inscrição...") }
-        EventRegistrationRepository.getRegistration(userId, event.id).addOnCompleteListener { task ->
-            if (!task.isSuccessful) {
+        dataSource.getRegistration(userId, event.id) { result ->
+            if (result.isFailure) {
                 publish { copy(registrationEnabled = true, registrationText = "Tentar novamente") }
                 notify("Não foi possível verificar sua inscrição.")
                 updateRatingEligibility()
-                return@addOnCompleteListener
+                return@getRegistration
             }
-            isRegistered = task.result?.exists() == true
+            isRegistered = result.getOrDefault(false)
             isRegistrationLoaded = true
             updateRegistrationControl()
             updateRatingEligibility()
@@ -108,8 +107,8 @@ class EventDetailsViewModel : ViewModel() {
             return
         }
         publish { copy(registrationEnabled = false, registrationText = "Inscrevendo...") }
-        EventRegistrationRepository.register(userId, event).addOnCompleteListener { task ->
-            if (task.isSuccessful) {
+        dataSource.register(userId, event) { result ->
+            if (result.isSuccess) {
                 isRegistered = true
                 notify("Inscrição realizada.")
                 updateRegistrationControl()
@@ -123,8 +122,8 @@ class EventDetailsViewModel : ViewModel() {
 
     private fun cancelRegistration() {
         publish { copy(registrationEnabled = false, registrationText = "Cancelando inscrição...") }
-        EventRegistrationRepository.cancel(userId, event.id).addOnCompleteListener { task ->
-            if (task.isSuccessful) {
+        dataSource.cancelRegistration(userId, event.id) { result ->
+            if (result.isSuccess) {
                 isRegistered = false
                 notify("Inscrição cancelada.")
                 updateRegistrationControl()
@@ -139,13 +138,13 @@ class EventDetailsViewModel : ViewModel() {
     private fun loadFavorite() {
         isFavoriteLoaded = false
         publish { copy(favoriteEnabled = false, favoriteText = "Verificando favoritos...") }
-        EventFavoriteRepository.getFavorite(userId, event.id).addOnCompleteListener { task ->
-            if (!task.isSuccessful) {
+        dataSource.getFavorite(userId, event.id) { result ->
+            if (result.isFailure) {
                 publish { copy(favoriteEnabled = true, favoriteText = "Tentar novamente") }
                 notify("Não foi possível verificar seus favoritos.")
-                return@addOnCompleteListener
+                return@getFavorite
             }
-            isFavorite = task.result?.exists() == true
+            isFavorite = result.getOrDefault(false)
             isFavoriteLoaded = true
             publish { copy(favoriteEnabled = true, favoriteText = detailsPolicy.favoriteButtonText(isFavorite)) }
         }
@@ -153,8 +152,8 @@ class EventDetailsViewModel : ViewModel() {
 
     private fun addFavorite() {
         publish { copy(favoriteEnabled = false, favoriteText = "Adicionando aos favoritos...") }
-        EventFavoriteRepository.favorite(userId, event).addOnCompleteListener { task ->
-            if (task.isSuccessful) {
+        dataSource.favorite(userId, event) { result ->
+            if (result.isSuccess) {
                 isFavorite = true
                 notify("Evento adicionado aos favoritos.")
                 publish { copy(favoriteEnabled = true, favoriteText = detailsPolicy.favoriteButtonText(isFavorite)) }
@@ -167,8 +166,8 @@ class EventDetailsViewModel : ViewModel() {
 
     private fun removeFavorite() {
         publish { copy(favoriteEnabled = false, favoriteText = "Removendo dos favoritos...") }
-        EventFavoriteRepository.unfavorite(userId, event.id).addOnCompleteListener { task ->
-            if (task.isSuccessful) {
+        dataSource.unfavorite(userId, event.id) { result ->
+            if (result.isSuccess) {
                 isFavorite = false
                 notify("Evento removido dos favoritos.")
                 publish { copy(favoriteEnabled = true, favoriteText = detailsPolicy.favoriteButtonText(isFavorite)) }
@@ -181,14 +180,12 @@ class EventDetailsViewModel : ViewModel() {
 
     private fun loadRatingsSummary() {
         publish { copy(ratingSummary = "Carregando avaliações...") }
-        EventRatingRepository.getRatings(event.id).addOnCompleteListener { task ->
-            if (!task.isSuccessful) {
+        dataSource.getRatings(event.id) { result ->
+            if (result.isFailure) {
                 publish { copy(ratingSummary = "Não foi possível carregar as avaliações.") }
-                return@addOnCompleteListener
+                return@getRatings
             }
-            val ratings = task.result?.documents.orEmpty()
-                .mapNotNull { it.getLong("rating")?.toInt() }
-                .filter { it in 1..5 }
+            val ratings = result.getOrDefault(emptyList()).filter { it in 1..5 }
             val summary = if (ratings.isEmpty()) "Ainda não há avaliações para este evento."
             else "Média: %.1f de 5 (%d %s)".format(
                 ratings.average(), ratings.size, if (ratings.size == 1) "avaliação" else "avaliações"
@@ -220,9 +217,9 @@ class EventDetailsViewModel : ViewModel() {
         isLoadingUserRating = true
         isUserRatingLoaded = false
         publish { copy(ratingEnabled = false, ratingButtonEnabled = false, ratingButtonText = "Carregando sua avaliação...") }
-        EventRatingRepository.getRating(event.id, userId).addOnCompleteListener { task ->
+        dataSource.getRating(event.id, userId) { result ->
             isLoadingUserRating = false
-            if (!task.isSuccessful) {
+            if (result.isFailure) {
                 publish {
                     copy(
                         ratingEligibility = "Não foi possível verificar sua avaliação.",
@@ -230,9 +227,9 @@ class EventDetailsViewModel : ViewModel() {
                         ratingButtonEnabled = true
                     )
                 }
-                return@addOnCompleteListener
+                return@getRating
             }
-            val rating = task.result?.getLong("rating")?.toInt()?.takeIf { it in 1..5 } ?: 0
+            val rating = result.getOrDefault(null) ?: 0
             isUserRatingLoaded = true
             publish {
                 copy(
