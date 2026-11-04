@@ -3,9 +3,7 @@ package br.com.uri.campushub.feature.events.viewmodel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import br.com.uri.campushub.feature.events.data.EventRepository
 import br.com.uri.campushub.feature.events.model.CampusEvent
-import com.google.firebase.firestore.DocumentSnapshot
 
 data class EventsUiState(
     val isLoading: Boolean = false,
@@ -16,7 +14,9 @@ data class EventsUiState(
     val selectedCategory: String = ALL_CATEGORIES
 )
 
-class EventsViewModel : ViewModel() {
+class EventsViewModel(
+    private val dataSource: EventListDataSource = FirebaseEventListDataSource
+) : ViewModel() {
 
     private val _uiState = MutableLiveData(EventsUiState())
     val uiState: LiveData<EventsUiState> = _uiState
@@ -30,13 +30,13 @@ class EventsViewModel : ViewModel() {
     fun loadEvents() {
         _uiState.value = currentState().copy(isLoading = true, hasError = false)
 
-        EventRepository.getAvailableEvents().addOnCompleteListener { task ->
-            if (!task.isSuccessful) {
+        dataSource.getAvailableEvents { result ->
+            if (result.isFailure) {
                 _uiState.value = currentState().copy(isLoading = false, hasError = true)
-                return@addOnCompleteListener
+                return@getAvailableEvents
             }
 
-            allEvents = task.result?.documents.orEmpty().map(::toCampusEvent)
+            allEvents = result.getOrDefault(emptyList())
             val categories = buildCategories()
             if (selectedCategory !in categories) {
                 selectedCategory = ALL_CATEGORIES
@@ -75,21 +75,5 @@ class EventsViewModel : ViewModel() {
 
     private fun buildCategories(): List<String> {
         return eventFilter.categories(allEvents)
-    }
-
-    private fun toCampusEvent(document: DocumentSnapshot): CampusEvent {
-        return CampusEvent(
-            id = document.id,
-            title = document.getString("title").orEmpty(),
-            description = document.getString("description").orEmpty(),
-            date = document.getString("date").orEmpty(),
-            location = document.getString("location").orEmpty(),
-            address = document.getString("address").orEmpty(),
-            latitude = (document.get("latitude") as? Number)?.toDouble(),
-            longitude = (document.get("longitude") as? Number)?.toDouble(),
-            category = document.getString("category") ?: "Sem categoria",
-            startsAt = document.getTimestamp("startsAt"),
-            endsAt = document.getTimestamp("endsAt")
-        )
     }
 }
