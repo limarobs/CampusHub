@@ -32,6 +32,7 @@ import br.com.uri.campushub.feature.auth.ui.MainActivity
 import br.com.uri.campushub.feature.events.data.EventCommentRepository
 import br.com.uri.campushub.feature.events.model.EventComment
 import br.com.uri.campushub.feature.events.model.CampusEvent
+import br.com.uri.campushub.feature.events.viewmodel.EventDetailsPolicy
 import br.com.uri.campushub.feature.events.viewmodel.EventDetailsViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
@@ -102,6 +103,7 @@ class EventDetailsActivity : AppCompatActivity() {
     private lateinit var userId: String
     private lateinit var event: CampusEvent
     private val detailsViewModel: EventDetailsViewModel by viewModels()
+    private val detailsPolicy = EventDetailsPolicy()
     private var audioRecorder: MediaRecorder? = null
     private var audioPlayer: MediaPlayer? = null
     private var recordingFile: File? = null
@@ -464,7 +466,7 @@ class EventDetailsActivity : AppCompatActivity() {
                 220.dp()
             ).apply { topMargin = 12.dp() }
         })
-        if (photo.authorId == userId) {
+        if (detailsPolicy.canManagePublication(photo.authorId, userId)) {
             item.addView(MaterialButton(this).apply {
                 text = "Excluir"
                 setOnClickListener { deletePhoto(photo) }
@@ -597,7 +599,7 @@ class EventDetailsActivity : AppCompatActivity() {
             text = "Assistir"
             setOnClickListener { videoView.start() }
         })
-        if (video.authorId == userId) {
+        if (detailsPolicy.canManagePublication(video.authorId, userId)) {
             item.addView(MaterialButton(this).apply {
                 text = "Excluir"
                 setOnClickListener {
@@ -736,7 +738,7 @@ class EventDetailsActivity : AppCompatActivity() {
         item.addView(progress)
         item.addView(duration)
         item.addView(playButton)
-        if (audio.authorId == userId) {
+        if (detailsPolicy.canManagePublication(audio.authorId, userId)) {
             item.addView(MaterialButton(this).apply {
                 text = "Excluir"
                 setOnClickListener {
@@ -780,8 +782,7 @@ class EventDetailsActivity : AppCompatActivity() {
     }
 
     private fun formatAudioTime(milliseconds: Long): String {
-        val totalSeconds = milliseconds / 1000
-        return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
+        return detailsPolicy.formatAudioTime(milliseconds)
     }
 
     private fun readAudios(): MutableList<LocalAudio> = try {
@@ -846,8 +847,8 @@ class EventDetailsActivity : AppCompatActivity() {
     }
 
     private fun addComment() {
-        val content = commentInput.text?.toString()?.trim().orEmpty()
-        if (content.isBlank()) {
+        val content = detailsPolicy.commentContent(commentInput.text)
+        if (content == null) {
             commentInput.error = "Digite um comentário antes de publicar."
             return
         }
@@ -888,7 +889,7 @@ class EventDetailsActivity : AppCompatActivity() {
         card.findViewById<TextView>(R.id.tvCommentDate).text = formatCommentDate(comment.createdAt)
         card.findViewById<TextView>(R.id.tvCommentContent).text = comment.content
 
-        if (comment.authorId == userId) {
+        if (detailsPolicy.canManagePublication(comment.authorId, userId)) {
             val ownerActions = card.findViewById<LinearLayout>(R.id.commentOwnerActions)
             ownerActions.visibility = View.VISIBLE
             card.findViewById<MaterialButton>(R.id.btnEditComment).setOnClickListener {
@@ -916,8 +917,8 @@ class EventDetailsActivity : AppCompatActivity() {
             .setView(editText)
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Salvar") { _, _ ->
-                val content = editText.text.toString().trim()
-                if (content.isBlank()) {
+                val content = detailsPolicy.commentContent(editText.text)
+                if (content == null) {
                     Toast.makeText(this, "O comentário não pode ficar vazio.", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
@@ -1007,9 +1008,7 @@ class EventDetailsActivity : AppCompatActivity() {
     }
 
     private fun CampusEvent.hasValidCoordinates(): Boolean {
-        val eventLatitude = latitude ?: return false
-        val eventLongitude = longitude ?: return false
-        return eventLatitude in -90.0..90.0 && eventLongitude in -180.0..180.0
+        return detailsPolicy.hasValidCoordinates(latitude, longitude)
     }
 
     private fun navigateToLogin() {

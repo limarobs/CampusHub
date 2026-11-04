@@ -94,4 +94,43 @@ class EventDetailsPolicyTest {
         assertTrue(policy.isValidRating(5))
         assertFalse(policy.isValidRating(6))
     }
+
+    @Test
+    fun `trims a valid comment before publishing`() {
+        assertEquals("Comentario", policy.commentContent("  Comentario  "))
+    }
+
+    @Test
+    fun `rejects empty comments`() {
+        assertEquals(null, policy.commentContent(null))
+        assertEquals(null, policy.commentContent("   \n\t  "))
+    }
+
+    @Test
+    fun `allows publication management only for its author`() {
+        assertTrue(policy.canManagePublication("student-1", "student-1"))
+        assertFalse(policy.canManagePublication("student-1", "student-2"))
+    }
+
+    @Test
+    fun `accepts coordinates within map limits including boundaries`() {
+        assertTrue(policy.hasValidCoordinates(-90.0, -180.0))
+        assertTrue(policy.hasValidCoordinates(90.0, 180.0))
+    }
+
+    @Test
+    fun `rejects missing or out of range coordinates`() {
+        assertFalse(policy.hasValidCoordinates(null, 0.0))
+        assertFalse(policy.hasValidCoordinates(0.0, null))
+        assertFalse(policy.hasValidCoordinates(90.1, 0.0))
+        assertFalse(policy.hasValidCoordinates(0.0, -180.1))
+    }
+
+    @Test
+    fun `formats audio elapsed time`() {
+        assertEquals("0:00", policy.formatAudioTime(0))
+        assertEquals("0:01", policy.formatAudioTime(1_999))
+        assertEquals("1:01", policy.formatAudioTime(61_000))
+        assertEquals("0:00", policy.formatAudioTime(-1))
+    }
 }
