@@ -2,7 +2,9 @@ package br.com.uri.campushub.integration
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import br.com.uri.campushub.core.firebase.FirebaseServices
+import br.com.uri.campushub.feature.events.data.EventCommentRepository
 import br.com.uri.campushub.feature.events.data.EventFavoriteRepository
+import br.com.uri.campushub.feature.events.data.EventRatingRepository
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
 import br.com.uri.campushub.feature.events.model.CampusEvent
 import br.com.uri.campushub.feature.profile.data.UserProfileRepository
@@ -124,6 +126,38 @@ class FirebaseRepositoryIntegrationTest {
 
         await(EventFavoriteRepository.unfavorite(user.uid, event.id))
         assertFalse(await(EventFavoriteRepository.getFavorite(user.uid, event.id)).exists())
+    }
+
+    @Test
+    fun createsUpdatesAndDeletesOwnEventComment() {
+        val event = testEvent("comment")
+        val comment = await(
+            EventCommentRepository.addComment(event.id, user.uid, "Ana", "Primeiro comentário")
+        )
+
+        var comments = await(EventCommentRepository.getComments(event.id))
+        assertEquals("Primeiro comentário", comments.documents.single().getString("content"))
+
+        await(EventCommentRepository.updateComment(event.id, comment.id, "Comentário atualizado"))
+        comments = await(EventCommentRepository.getComments(event.id))
+        assertEquals("Comentário atualizado", comments.documents.single().getString("content"))
+
+        await(EventCommentRepository.deleteComment(event.id, comment.id))
+        assertTrue(await(EventCommentRepository.getComments(event.id)).isEmpty)
+    }
+
+    @Test
+    fun savesAndUpdatesRatingForRegisteredUser() {
+        val event = testEvent("rating")
+        await(EventRegistrationRepository.register(user.uid, event))
+
+        await(EventRatingRepository.saveRating(event.id, user.uid, 3))
+        assertEquals(3L, await(EventRatingRepository.getRating(event.id, user.uid)).getLong("rating"))
+
+        await(EventRatingRepository.saveRating(event.id, user.uid, 5))
+        val ratings = await(EventRatingRepository.getRatings(event.id))
+        assertEquals(1, ratings.size())
+        assertEquals(5L, ratings.documents.single().getLong("rating"))
     }
 
     private fun testEvent(suffix: String) = CampusEvent(
