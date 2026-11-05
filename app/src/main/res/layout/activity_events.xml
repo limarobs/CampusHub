@@ -14,7 +14,10 @@
         android:layout_height="wrap_content"
         android:insetLeft="0dp"
         android:text="Voltar"
-        android:textAllCaps="false" />
+        android:textAllCaps="false"
+        app:icon="@drawable/ic_arrow_back"
+        app:iconGravity="textStart"
+        app:iconPadding="8dp" />
 
     <TextView
         android:layout_width="match_parent"
