@@ -7,6 +7,7 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
+import br.com.uri.campushub.core.firebase.FirebaseServices
 import br.com.uri.campushub.feature.auth.domain.AuthInputValidator
 import br.com.uri.campushub.feature.auth.domain.InputField
 import br.com.uri.campushub.feature.home.ui.WelcomeActivity
@@ -19,6 +20,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent.getBooleanExtra(EXTRA_USE_FIREBASE_EMULATORS, false)) {
+            FirebaseServices.useEmulatorsForE2ETests()
+        }
         setContentView(R.layout.activity_main)
 
         val emailField = findViewById<EditText>(R.id.email)
@@ -84,5 +88,9 @@ class MainActivity : AppCompatActivity() {
     private fun openWelcomeScreen() {
         startActivity(Intent(this, WelcomeActivity::class.java))
         finish()
+    }
+
+    companion object {
+        const val EXTRA_USE_FIREBASE_EMULATORS = "useFirebaseEmulators"
     }
 }

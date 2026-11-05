@@ -1,0 +1,30 @@
+appId: br.com.uri.campushub
+name: Student creates an account and browses events
+---
+- runScript: scripts/create_test_account.js
+- launchApp:
+    clearState: true
+    arguments:
+      useFirebaseEmulators: true
+- runFlow:
+    when:
+      visible: "Don't Show Again"
+    commands:
+      - tapOn: "Don't Show Again"
+- tapOn:
+    id: br.com.uri.campushub:id/btnSignup
+- tapOn:
+    id: br.com.uri.campushub:id/nickname
+- inputText: ${output.name}
+- tapOn:
+    id: br.com.uri.campushub:id/email
+- inputText: ${output.email}
+- tapOn:
+    id: br.com.uri.campushub:id/password
+- inputText: ${output.password}
+- tapOn:
+    id: br.com.uri.campushub:id/btnSignup
+- assertVisible: ${output.name}
+- tapOn:
+    id: br.com.uri.campushub:id/btnEvents
+- assertVisible: Eventos disponíveis

@@ -112,13 +112,22 @@ Login → Eventos → Detalhes → Inscrição/Favorito/Interações → Meus ev
 
 ## Testes
 
-Os testes serão organizados em três níveis: unitários para regras de negócio, integração com o Firebase Emulator Suite e fluxos E2E no emulador Android.
+Os testes são organizados em três níveis: unitários para regras de negócio, integração com o Firebase Emulator Suite e fluxos E2E com Maestro.
 
 ```text
 ./gradlew testDebugUnitTest       # testes unitários
-./gradlew createDebugUnitTestCoverageReport # relatório em app/build/reports/coverage/test/debug
-./gradlew connectedDebugAndroidTest # testes de integração e E2E
+./gradlew createCoreUnitTestCoverageReport # relatório em app/build/reports/coverage/core-unit-test/debug/html
+./gradlew connectedDebugAndroidTest # 10 testes de integração com Firebase
 ```
+
+Para executar os E2E, inicie os emuladores Firebase e, em outro terminal, rode os fluxos Maestro no emulador Android:
+
+```text
+npx firebase-tools emulators:start --only auth,firestore --project campushub-c6980
+maestro test maestro
+```
+
+Os fluxos usam contas temporárias e ativam o Firebase Emulator apenas por meio do argumento de inicialização do Maestro. O aplicativo aberto normalmente continua usando a configuração Firebase padrão.
 
 ---
 

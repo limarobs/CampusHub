@@ -1,8 +1,10 @@
 import java.util.Properties
+import org.gradle.testing.jacoco.tasks.JacocoReport
 
 plugins {
     alias(libs.plugins.android.application)
     id("com.google.gms.google-services")
+    jacoco
 }
 val localProperties = Properties().apply {
     val localPropertiesFile = rootProject.file("local.properties")
@@ -77,7 +79,43 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("io.mockk:mockk:1.14.7")
-    androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+}
+
+tasks.register<JacocoReport>("createCoreUnitTestCoverageReport") {
+    group = "verification"
+    description = "Generates coverage for code exercised by unit tests."
+    dependsOn("testDebugUnitTest")
+
+    val excludedClasses = listOf(
+        "**/R.class",
+        "**/R${'$'}*.class",
+        "**/BuildConfig.*",
+        "**/Manifest*.*",
+        "br/com/uri/campushub/core/**",
+        "br/com/uri/campushub/feature/**/ui/**",
+        "br/com/uri/campushub/feature/**/data/**",
+        "br/com/uri/campushub/feature/events/viewmodel/Firebase*DataSource*"
+    )
+
+    classDirectories.setFrom(
+        fileTree(layout.buildDirectory.dir("intermediates/javac/debug/compileDebugJavaWithJavac/classes")) {
+            exclude(excludedClasses)
+        },
+        fileTree(layout.buildDirectory.dir("intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes")) {
+            exclude(excludedClasses)
+        }
+    )
+    sourceDirectories.setFrom(files("src/main/java"))
+    executionData.setFrom(
+        layout.buildDirectory.file("outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec")
+    )
+
+    reports {
+        html.required.set(true)
+        html.outputLocation.set(layout.buildDirectory.dir("reports/coverage/core-unit-test/debug/html"))
+        xml.required.set(true)
+        xml.outputLocation.set(layout.buildDirectory.file("reports/coverage/core-unit-test/debug/report.xml"))
+    }
 }
 
