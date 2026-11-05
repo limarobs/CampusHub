@@ -1,5 +1,7 @@
 package br.com.uri.campushub.feature.events.ui
 
+import android.app.Activity
+import android.content.ClipData
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -18,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import br.com.uri.campushub.R
 import br.com.uri.campushub.feature.events.viewmodel.EventDetailsPolicy
 import com.google.android.material.button.MaterialButton
@@ -72,6 +75,7 @@ internal class EventMediaController(
     private var audioRecorder: MediaRecorder? = null
     private var audioPlayer: MediaPlayer? = null
     private var recordingFile: File? = null
+    private var pendingVideoFile: File? = null
     private val audioHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var recordingStartedAt = 0L
     private var recordingTimer: Runnable? = null
@@ -95,7 +99,17 @@ internal class EventMediaController(
 
     private val recordVideoLauncher = activity.registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { result -> result.data?.data?.let(::copyVideo) }
+    ) { result ->
+        val videoFile = pendingVideoFile
+        pendingVideoFile = null
+        if (result.resultCode == Activity.RESULT_OK &&
+            videoFile?.isFile == true && videoFile.length() > 0
+        ) {
+            addVideo(videoFile)
+        } else {
+            videoFile?.delete()
+        }
+    }
 
     private val videoCameraPermissionLauncher = activity.registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -130,6 +144,8 @@ internal class EventMediaController(
         playingTimer?.let(audioHandler::removeCallbacks)
         audioRecorder?.release()
         audioPlayer?.release()
+        pendingVideoFile?.delete()
+        pendingVideoFile = null
     }
 
     private fun showPhotoOptions() {
@@ -254,14 +270,23 @@ internal class EventMediaController(
     }
 
     private fun recordVideo() {
+        pendingVideoFile?.delete()
+        pendingVideoFile = createVideoFile()
+        val outputUri = FileProvider.getUriForFile(
+            activity,
+            "${activity.packageName}.fileprovider",
+            pendingVideoFile!!
+        )
         recordVideoLauncher.launch(Intent(MediaStore.ACTION_VIDEO_CAPTURE).apply {
             putExtra(MediaStore.EXTRA_DURATION_LIMIT, 30)
+            putExtra(MediaStore.EXTRA_OUTPUT, outputUri)
+            clipData = ClipData.newRawUri("event_video", outputUri)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         })
     }
 
     private fun copyVideo(sourceUri: android.net.Uri) {
-        val videoFile = File(File(activity.filesDir, "event_videos").apply { mkdirs() },
-            "${UUID.randomUUID()}.mp4")
+        val videoFile = createVideoFile()
         try {
             activity.contentResolver.openInputStream(sourceUri)?.use { input ->
                 videoFile.outputStream().use(input::copyTo)
@@ -271,6 +296,11 @@ internal class EventMediaController(
             videoFile.delete()
             Toast.makeText(activity, "Não foi possível adicionar o vídeo.", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun createVideoFile(): File {
+        val directory = File(activity.filesDir, "event_videos").apply { mkdirs() }
+        return File(directory, "${UUID.randomUUID()}.mp4")
     }
 
     private fun addVideo(videoFile: File) {
