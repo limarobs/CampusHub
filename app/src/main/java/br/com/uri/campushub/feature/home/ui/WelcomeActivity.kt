@@ -38,8 +38,6 @@ class WelcomeActivity : AppCompatActivity() {
 
         userId = currentUser.uid
         findViewById<TextView>(R.id.tvUserName).text = currentUser.displayName ?: "Aluno"
-        findViewById<TextView>(R.id.tvUserEmail).text =
-            currentUser.email ?: "E-mail não disponível"
 
         registeredEventsSummary = findViewById(R.id.tvRegisteredEventsSummary)
         favoritesSummary = findViewById(R.id.tvFavoritesSummary)
@@ -47,14 +45,6 @@ class WelcomeActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnEvents).setOnClickListener {
             startActivity(Intent(this, EventsActivity::class.java))
-        }
-
-        findViewById<Button>(R.id.btnMyEvents).setOnClickListener {
-            startActivity(Intent(this, MyEventsActivity::class.java))
-        }
-
-        findViewById<Button>(R.id.btnMyFavorites).setOnClickListener {
-            startActivity(Intent(this, MyFavoritesActivity::class.java))
         }
 
         findViewById<MaterialCardView>(R.id.cardMyEventsSummary).setOnClickListener {
@@ -69,10 +59,6 @@ class WelcomeActivity : AppCompatActivity() {
             startActivity(Intent(this, ProfileActivity::class.java))
         }
 
-        findViewById<Button>(R.id.btnLogout).setOnClickListener {
-            FirebaseAuth.getInstance().signOut()
-            navigateToLogin()
-        }
     }
 
     override fun onResume() {
@@ -90,7 +76,7 @@ class WelcomeActivity : AppCompatActivity() {
         UserProfileRepository.getRole(userId).addOnCompleteListener { task ->
             val role = if (task.isSuccessful) UserProfileRepository.roleFrom(task.result)
             else UserRole.STUDENT
-            userRole.text = "Perfil: ${role.label}"
+            userRole.text = role.label
         }
     }
 

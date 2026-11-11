@@ -38,6 +38,10 @@ class ProfileActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnBack).setOnClickListener {
             finish()
         }
+        findViewById<MaterialButton>(R.id.btnLogout).setOnClickListener {
+            auth.signOut()
+            navigateToLogin()
+        }
 
         saveButton.setOnClickListener {
             val displayName = nameField.text?.toString()?.trim().orEmpty()
