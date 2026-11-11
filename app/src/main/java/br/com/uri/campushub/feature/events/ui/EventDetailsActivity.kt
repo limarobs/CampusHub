@@ -3,6 +3,7 @@ package br.com.uri.campushub.feature.events.ui
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.RatingBar
@@ -27,6 +28,10 @@ class EventDetailsActivity : AppCompatActivity() {
     private lateinit var saveRatingButton: MaterialButton
     private lateinit var ratingSummary: TextView
     private lateinit var ratingEligibility: TextView
+    private lateinit var aboutContent: View
+    private lateinit var communityContent: View
+    private lateinit var aboutTab: MaterialButton
+    private lateinit var communityTab: MaterialButton
     private lateinit var commentsController: EventCommentsController
     private lateinit var mediaController: EventMediaController
     private lateinit var authorName: String
@@ -62,6 +67,7 @@ class EventDetailsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_event_details)
         bindEventViews()
         bindDetailsControls()
+        bindContentNavigation()
         initializeControllers()
         observeDetailsState()
         detailsViewModel.start(userId, event)
@@ -72,11 +78,35 @@ class EventDetailsActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<TextView>(R.id.tvEventDetailsTitle).text = event.title
         findViewById<TextView>(R.id.tvEventDetailsDescription).text = event.description
+        findViewById<TextView>(R.id.tvEventCategory).text = event.category
         findViewById<TextView>(R.id.tvEventDetailsDate).text = event.date
         findViewById<TextView>(R.id.tvEventDetailsLocation).text = event.location
         findViewById<TextView>(R.id.tvEventDetailsAddress).text =
             event.address.ifBlank { "Endereço não informado." }
-        EventMapRenderer.render(findViewById(android.R.id.content), event)
+        val mapContainer = findViewById<View>(R.id.eventMapContainer)
+        if (event.address.isBlank()) {
+            mapContainer.visibility = View.GONE
+        } else {
+            EventMapRenderer.render(findViewById(android.R.id.content), event)
+        }
+    }
+
+    private fun bindContentNavigation() {
+        aboutContent = findViewById(R.id.aboutContent)
+        communityContent = findViewById(R.id.communityContent)
+        aboutTab = findViewById(R.id.btnTabAbout)
+        communityTab = findViewById(R.id.btnTabCommunity)
+
+        aboutTab.setOnClickListener { showContent(communityVisible = false) }
+        communityTab.setOnClickListener { showContent(communityVisible = true) }
+        showContent(communityVisible = false)
+    }
+
+    private fun showContent(communityVisible: Boolean) {
+        aboutContent.visibility = if (communityVisible) View.GONE else View.VISIBLE
+        communityContent.visibility = if (communityVisible) View.VISIBLE else View.GONE
+        aboutTab.alpha = if (communityVisible) 0.55f else 1f
+        communityTab.alpha = if (communityVisible) 1f else 0.55f
     }
 
     private fun bindDetailsControls() {
