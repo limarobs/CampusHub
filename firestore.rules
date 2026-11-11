@@ -10,8 +10,25 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function createsStudentProfile() {
+      return request.resource.data.keys().hasOnly([
+        'displayName', 'email', 'role', 'createdAt'
+      ]) && request.resource.data.role == 'STUDENT';
+    }
+
+    function preservesRole() {
+      return !resource.data.keys().hasAll(['role'])
+        || request.resource.data.role == resource.data.role;
+    }
+
     match /users/{userId} {
-      allow read, create, update: if ownsUser(userId);
+      allow read: if ownsUser(userId);
+      allow create: if ownsUser(userId) && createsStudentProfile();
+      allow update: if ownsUser(userId)
+          && preservesRole()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'displayName', 'email', 'updatedAt'
+          ]);
 
       match /registrations/{eventId} {
         allow read, create, delete: if ownsUser(userId);

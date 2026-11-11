@@ -8,15 +8,18 @@ import br.com.uri.campushub.feature.events.data.EventRatingRepository
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
 import br.com.uri.campushub.feature.events.model.CampusEvent
 import br.com.uri.campushub.feature.profile.data.UserProfileRepository
+import br.com.uri.campushub.feature.profile.model.UserRole
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
@@ -60,6 +63,25 @@ class FirebaseRepositoryIntegrationTest {
 
         assertEquals("Ana", profile.getString("displayName"))
         assertEquals(user.email, profile.getString("email"))
+        assertEquals(UserRole.STUDENT.firestoreValue, profile.getString("role"))
+    }
+
+    @Test
+    fun cannotPromoteOwnProfileToOrganizer() {
+        await(UserProfileRepository.create(user, "Ana"))
+
+        try {
+            await(
+                firestore.collection("users").document(user.uid)
+                    .update("role", UserRole.ORGANIZER.firestoreValue)
+            )
+            fail("A student must not be able to promote their own profile.")
+        } catch (exception: Exception) {
+            val firestoreException = generateSequence(exception as Throwable?) { it.cause }
+                .filterIsInstance<FirebaseFirestoreException>()
+                .firstOrNull()
+            assertEquals(FirebaseFirestoreException.Code.PERMISSION_DENIED, firestoreException?.code)
+        }
     }
 
     @Test

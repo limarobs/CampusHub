@@ -12,6 +12,8 @@ import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
 import br.com.uri.campushub.feature.events.ui.EventsActivity
 import br.com.uri.campushub.feature.events.ui.MyFavoritesActivity
 import br.com.uri.campushub.feature.events.ui.MyEventsActivity
+import br.com.uri.campushub.feature.profile.data.UserProfileRepository
+import br.com.uri.campushub.feature.profile.model.UserRole
 import br.com.uri.campushub.feature.profile.ui.ProfileActivity
 import com.google.android.material.card.MaterialCardView
 import com.google.firebase.auth.FirebaseAuth
@@ -21,6 +23,7 @@ class WelcomeActivity : AppCompatActivity() {
     private lateinit var userId: String
     private lateinit var registeredEventsSummary: TextView
     private lateinit var favoritesSummary: TextView
+    private lateinit var userRole: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,6 +43,7 @@ class WelcomeActivity : AppCompatActivity() {
 
         registeredEventsSummary = findViewById(R.id.tvRegisteredEventsSummary)
         favoritesSummary = findViewById(R.id.tvFavoritesSummary)
+        userRole = findViewById(R.id.tvUserRole)
 
         findViewById<Button>(R.id.btnEvents).setOnClickListener {
             startActivity(Intent(this, EventsActivity::class.java))
@@ -76,6 +80,17 @@ class WelcomeActivity : AppCompatActivity() {
 
         if (::userId.isInitialized) {
             loadUserSummary()
+            loadUserRole()
+        }
+    }
+
+    private fun loadUserRole() {
+        userRole.text = "Carregando perfil..."
+
+        UserProfileRepository.getRole(userId).addOnCompleteListener { task ->
+            val role = if (task.isSuccessful) UserProfileRepository.roleFrom(task.result)
+            else UserRole.STUDENT
+            userRole.text = "Perfil: ${role.label}"
         }
     }
 
