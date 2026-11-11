@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="@color/screen_background"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:padding="@dimen/screen_padding">
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnBack"
@@ -157,7 +157,7 @@
         android:id="@+id/eventsScrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="@dimen/space_block"
         android:layout_weight="1"
         android:fillViewport="true"
         android:visibility="gone">

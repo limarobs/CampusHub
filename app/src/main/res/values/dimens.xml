@@ -1,0 +1,9 @@
+<resources>
+    <dimen name="screen_padding">24dp</dimen>
+    <dimen name="space_section">32dp</dimen>
+    <dimen name="space_block">24dp</dimen>
+    <dimen name="space_group">16dp</dimen>
+    <dimen name="space_item">12dp</dimen>
+    <dimen name="card_corner">20dp</dimen>
+    <dimen name="button_height">52dp</dimen>
+</resources>
