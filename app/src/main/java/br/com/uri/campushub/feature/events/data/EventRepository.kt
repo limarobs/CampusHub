@@ -2,6 +2,7 @@ package br.com.uri.campushub.feature.events.data
 
 import br.com.uri.campushub.core.firebase.FirebaseServices
 import com.google.android.gms.tasks.Task
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.QuerySnapshot
 
 object EventRepository {
@@ -13,4 +14,7 @@ object EventRepository {
             .collection(EVENTS_COLLECTION)
             .get()
     }
+
+    fun getEvent(eventId: String): Task<DocumentSnapshot> =
+        FirebaseServices.firestore.collection(EVENTS_COLLECTION).document(eventId).get()
 }
