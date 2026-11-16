@@ -9,8 +9,11 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
 import br.com.uri.campushub.feature.auth.ui.MainActivity
+import br.com.uri.campushub.feature.events.data.EventEditorRepository
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
+import br.com.uri.campushub.feature.events.data.toCampusEvent
 import br.com.uri.campushub.feature.events.model.CampusEvent
+import br.com.uri.campushub.feature.events.model.EventStatus
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
@@ -24,6 +27,8 @@ class MyEventsActivity : AppCompatActivity() {
     private lateinit var emptyState: View
     private lateinit var errorMessage: TextView
     private lateinit var retryButton: MaterialButton
+    private val showOrganizedEvents: Boolean
+        get() = intent.getBooleanExtra(EXTRA_SHOW_ORGANIZED_EVENTS, false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +48,7 @@ class MyEventsActivity : AppCompatActivity() {
         emptyState = findViewById(R.id.emptyMyEventsState)
         errorMessage = findViewById(R.id.tvMyEventsError)
         retryButton = findViewById(R.id.btnRetryMyEvents)
+        configureContent()
 
         findViewById<MaterialButton>(R.id.btnBack).setOnClickListener {
             finish()
@@ -67,7 +73,13 @@ class MyEventsActivity : AppCompatActivity() {
         errorMessage.visibility = View.GONE
         retryButton.visibility = View.GONE
 
-        EventRegistrationRepository.getRegistrations(userId).addOnCompleteListener { task ->
+        val eventsRequest = if (showOrganizedEvents) {
+            EventEditorRepository.getOrganizedEvents(userId)
+        } else {
+            EventRegistrationRepository.getRegistrations(userId)
+        }
+
+        eventsRequest.addOnCompleteListener { task ->
             progressBar.visibility = View.GONE
 
             if (!task.isSuccessful) {
@@ -76,7 +88,9 @@ class MyEventsActivity : AppCompatActivity() {
                 return@addOnCompleteListener
             }
 
-            val events = task.result?.documents.orEmpty().map(::toCampusEvent)
+            val events = task.result?.documents.orEmpty().map { document ->
+                if (showOrganizedEvents) document.toCampusEvent() else toRegisteredEvent(document)
+            }
 
             if (events.isEmpty()) {
                 emptyState.visibility = View.VISIBLE
@@ -89,7 +103,7 @@ class MyEventsActivity : AppCompatActivity() {
         }
     }
 
-    private fun toCampusEvent(document: DocumentSnapshot): CampusEvent {
+    private fun toRegisteredEvent(document: DocumentSnapshot): CampusEvent {
         return CampusEvent(
             id = document.getString("eventId") ?: document.id,
             title = document.getString("title").orEmpty(),
@@ -106,12 +120,33 @@ class MyEventsActivity : AppCompatActivity() {
         val card = layoutInflater.inflate(R.layout.item_event, eventsContainer, false)
         card.findViewById<TextView>(R.id.tvEventTitle).text = event.title
         card.findViewById<TextView>(R.id.tvEventDescription).text = event.description
+        card.findViewById<TextView>(R.id.tvEventCategoryStatus).text = if (showOrganizedEvents) {
+            "${event.category} • ${event.status.label}"
+        } else {
+            event.category
+        }
         card.findViewById<TextView>(R.id.tvEventDate).text = event.date
         card.findViewById<TextView>(R.id.tvEventLocation).text = event.location
         card.setOnClickListener {
-            startActivity(EventDetailsActivity.createIntent(this, event))
+            if (showOrganizedEvents) {
+                startActivity(EventEditorActivity.editIntent(this, event.id))
+            } else {
+                startActivity(EventDetailsActivity.createIntent(this, event))
+            }
         }
         eventsContainer.addView(card)
+    }
+
+    private fun configureContent() {
+        if (!showOrganizedEvents) return
+
+        findViewById<TextView>(R.id.tvMyEventsTitle).text = "Eventos organizados"
+        findViewById<TextView>(R.id.tvMyEventsSubtitle).text =
+            "Rascunhos e eventos sob sua responsabilidade. Toque para editar."
+        findViewById<TextView>(R.id.tvEmptyMyEventsTitle).text = "Nenhum evento criado"
+        findViewById<TextView>(R.id.tvEmptyMyEventsDescription).text =
+            "Crie um evento para começar a organizar sua programação."
+        errorMessage.text = "Não foi possível carregar seus eventos."
     }
 
     private fun navigateToLogin() {
@@ -120,5 +155,13 @@ class MyEventsActivity : AppCompatActivity() {
         }
         startActivity(loginIntent)
         finish()
+    }
+
+    companion object {
+        private const val EXTRA_SHOW_ORGANIZED_EVENTS = "show_organized_events"
+
+        fun organizedEventsIntent(context: android.content.Context): Intent =
+            Intent(context, MyEventsActivity::class.java)
+                .putExtra(EXTRA_SHOW_ORGANIZED_EVENTS, true)
     }
 }

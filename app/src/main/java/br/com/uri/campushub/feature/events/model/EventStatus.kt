@@ -1,9 +1,9 @@
 package br.com.uri.campushub.feature.events.model
 
-enum class EventStatus(val firestoreValue: String) {
-    DRAFT("DRAFT"),
-    PUBLISHED("PUBLISHED"),
-    CLOSED("CLOSED");
+enum class EventStatus(val firestoreValue: String, val label: String) {
+    DRAFT("DRAFT", "Rascunho"),
+    PUBLISHED("PUBLISHED", "Publicado"),
+    CLOSED("CLOSED", "Encerrado");
 
     companion object {
         fun fromFirestore(value: String?): EventStatus =

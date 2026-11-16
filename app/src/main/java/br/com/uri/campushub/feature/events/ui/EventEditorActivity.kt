@@ -176,9 +176,8 @@ class EventEditorActivity : AppCompatActivity() {
             }
 
             Toast.makeText(this, "Rascunho salvo.", Toast.LENGTH_SHORT).show()
-            eventId = task.result
-            findViewById<TextView>(R.id.tvEventEditorTitle).text = "Editar evento"
-            subtitle.text = "Rascunho salvo. Você pode continuar editando os dados."
+            startActivity(MyEventsActivity.organizedEventsIntent(this))
+            finish()
         }
     }
 

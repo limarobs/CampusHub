@@ -20,6 +20,7 @@
         app:iconPadding="8dp" />
 
     <TextView
+        android:id="@+id/tvMyEventsTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
@@ -29,6 +30,7 @@
         android:textStyle="bold" />
 
     <TextView
+        android:id="@+id/tvMyEventsSubtitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
@@ -53,6 +55,7 @@
         android:visibility="gone">
 
         <TextView
+            android:id="@+id/tvEmptyMyEventsTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Você ainda não se inscreveu em eventos"
@@ -61,6 +64,7 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/tvEmptyMyEventsDescription"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
