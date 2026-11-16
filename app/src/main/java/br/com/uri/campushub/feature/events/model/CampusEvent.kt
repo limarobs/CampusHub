@@ -13,5 +13,17 @@ data class CampusEvent(
     val longitude: Double? = null,
     val category: String = "Sem categoria",
     val startsAt: Timestamp? = null,
-    val endsAt: Timestamp? = null
-)
+    val endsAt: Timestamp? = null,
+    val organizerId: String = "",
+    val status: EventStatus = EventStatus.PUBLISHED,
+    val capacity: Int? = null,
+    val confirmedCount: Int = 0,
+    val waitlistCount: Int = 0,
+    val coverImageUrl: String = ""
+) {
+    val remainingCapacity: Int?
+        get() = capacity?.let { (it - confirmedCount).coerceAtLeast(0) }
+
+    val isFull: Boolean
+        get() = remainingCapacity == 0
+}
