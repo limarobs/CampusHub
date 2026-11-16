@@ -10,6 +10,40 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function isOrganizer() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ORGANIZER';
+    }
+
+    function ownsEvent(eventData) {
+      return isOrganizer()
+        && eventData.keys().hasAll(['organizerId'])
+        && eventData.organizerId == request.auth.uid;
+    }
+
+    function isPublishedEvent(eventData) {
+      // Eventos antigos, sem status, continuam visíveis durante a migração.
+      return !eventData.keys().hasAll(['status'])
+        || eventData.status == 'PUBLISHED';
+    }
+
+    function canReadEvent(eventData) {
+      return signedIn() && (isPublishedEvent(eventData) || ownsEvent(eventData));
+    }
+
+    function hasValidEventStatus(eventData) {
+      return eventData.keys().hasAll(['status'])
+        && eventData.status in ['DRAFT', 'PUBLISHED', 'CLOSED'];
+    }
+
+    function onlyEditsManagedEventFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'title', 'description', 'date', 'location', 'address', 'latitude', 'longitude',
+        'category', 'startsAt', 'endsAt', 'status', 'capacity', 'coverImageUrl', 'updatedAt'
+      ]);
+    }
+
     function createsStudentProfile() {
       return request.resource.data.keys().hasOnly([
         'displayName', 'email', 'role', 'createdAt'
@@ -18,7 +52,10 @@ service cloud.firestore {
 
     function preservesRole() {
       return !resource.data.keys().hasAll(['role'])
-        || request.resource.data.role == resource.data.role;
+        || (
+          request.resource.data.keys().hasAll(['role'])
+          && request.resource.data.role == resource.data.role
+        );
     }
 
     match /users/{userId} {
@@ -30,6 +67,8 @@ service cloud.firestore {
             'displayName', 'email', 'updatedAt'
           ]);
 
+      // Mantido até o fluxo atômico de vagas migrar as inscrições para
+      // events/{eventId}/registrations/{userId} no commit de capacidade.
       match /registrations/{eventId} {
         allow read, create, delete: if ownsUser(userId);
       }
@@ -40,26 +79,66 @@ service cloud.firestore {
     }
 
     match /events/{eventId} {
-      allow read: if signedIn();
+      allow read: if canReadEvent(resource.data);
+
+      allow create: if ownsEvent(request.resource.data)
+          && hasValidEventStatus(request.resource.data)
+          && request.resource.data.status == 'DRAFT';
+
+      allow update: if ownsEvent(resource.data)
+          && request.resource.data.organizerId == resource.data.organizerId
+          && hasValidEventStatus(request.resource.data)
+          && onlyEditsManagedEventFields();
+
+      allow delete: if ownsEvent(resource.data);
+
+      match /registrations/{attendeeId} {
+        allow read: if signedIn()
+            && (attendeeId == request.auth.uid
+              || ownsEvent(get(/databases/$(database)/documents/events/$(eventId)).data));
+
+        // A confirmação e a lista de espera serão controladas pelo fluxo
+        // atômico no backend; nenhum cliente grava nesta coleção diretamente.
+        allow write: if false;
+      }
 
       match /comments/{commentId} {
-        allow read: if signedIn();
-        allow create: if signedIn()
+        allow read: if canReadEvent(get(/databases/$(database)/documents/events/$(eventId)).data);
+
+        allow create: if canReadEvent(get(/databases/$(database)/documents/events/$(eventId)).data)
             && request.resource.data.authorId == request.auth.uid;
-        allow update: if signedIn()
+
+        allow update: if canReadEvent(get(/databases/$(database)/documents/events/$(eventId)).data)
             && resource.data.authorId == request.auth.uid
-            && request.resource.data.authorId == request.auth.uid;
-        allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+            && request.resource.data.authorId == resource.data.authorId
+            && request.resource.data.authorName == resource.data.authorName
+            && request.resource.data.createdAt == resource.data.createdAt;
+
+        allow delete: if canReadEvent(get(/databases/$(database)/documents/events/$(eventId)).data)
+            && resource.data.authorId == request.auth.uid;
       }
 
       match /ratings/{userId} {
-        allow read: if signedIn();
-        allow create, update: if ownsUser(userId)
+        allow read: if canReadEvent(get(/databases/$(database)/documents/events/$(eventId)).data);
+
+        allow create: if canReadEvent(get(/databases/$(database)/documents/events/$(eventId)).data)
+            && userId == request.auth.uid
             && request.resource.data.userId == request.auth.uid
             && request.resource.data.rating is int
             && request.resource.data.rating >= 1
             && request.resource.data.rating <= 5
-            && exists(/databases/$(database)/documents/users/$(request.auth.uid)/registrations/$(eventId));
+            && exists(/databases/$(database)/documents/users/$(request.auth.uid)/registrations/$(eventId))
+            && get(/databases/$(database)/documents/events/$(eventId)).data.endsAt <= request.time;
+
+        allow update: if canReadEvent(get(/databases/$(database)/documents/events/$(eventId)).data)
+            && userId == request.auth.uid
+            && resource.data.userId == request.auth.uid
+            && request.resource.data.userId == resource.data.userId
+            && request.resource.data.rating is int
+            && request.resource.data.rating >= 1
+            && request.resource.data.rating <= 5
+            && exists(/databases/$(database)/documents/users/$(request.auth.uid)/registrations/$(eventId))
+            && get(/databases/$(database)/documents/events/$(eventId)).data.endsAt <= request.time;
       }
     }
   }
