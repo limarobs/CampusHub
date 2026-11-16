@@ -2,6 +2,7 @@ package br.com.uri.campushub.feature.home.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -10,6 +11,7 @@ import br.com.uri.campushub.feature.auth.ui.MainActivity
 import br.com.uri.campushub.feature.events.data.EventFavoriteRepository
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
 import br.com.uri.campushub.feature.events.ui.EventsActivity
+import br.com.uri.campushub.feature.events.ui.EventEditorActivity
 import br.com.uri.campushub.feature.events.ui.MyFavoritesActivity
 import br.com.uri.campushub.feature.events.ui.MyEventsActivity
 import br.com.uri.campushub.feature.profile.data.UserProfileRepository
@@ -24,6 +26,7 @@ class WelcomeActivity : AppCompatActivity() {
     private lateinit var registeredEventsSummary: TextView
     private lateinit var favoritesSummary: TextView
     private lateinit var userRole: TextView
+    private lateinit var organizerActions: View
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +45,7 @@ class WelcomeActivity : AppCompatActivity() {
         registeredEventsSummary = findViewById(R.id.tvRegisteredEventsSummary)
         favoritesSummary = findViewById(R.id.tvFavoritesSummary)
         userRole = findViewById(R.id.tvUserRole)
+        organizerActions = findViewById(R.id.organizerActions)
 
         findViewById<Button>(R.id.btnEvents).setOnClickListener {
             startActivity(Intent(this, EventsActivity::class.java))
@@ -57,6 +61,14 @@ class WelcomeActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnEditProfile).setOnClickListener {
             startActivity(Intent(this, ProfileActivity::class.java))
+        }
+
+        findViewById<Button>(R.id.btnCreateEvent).setOnClickListener {
+            startActivity(EventEditorActivity.createIntent(this))
+        }
+
+        findViewById<Button>(R.id.btnManageEvents).setOnClickListener {
+            startActivity(MyEventsActivity.organizedEventsIntent(this))
         }
 
     }
@@ -77,6 +89,7 @@ class WelcomeActivity : AppCompatActivity() {
             val role = if (task.isSuccessful) UserProfileRepository.roleFrom(task.result)
             else UserRole.STUDENT
             userRole.text = role.label
+            organizerActions.visibility = if (role == UserRole.ORGANIZER) View.VISIBLE else View.GONE
         }
     }
 
