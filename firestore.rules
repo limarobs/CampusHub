@@ -44,6 +44,61 @@ service cloud.firestore {
       ]);
     }
 
+    function onlyEditsRegistrationCounters() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'confirmedCount', 'waitlistCount', 'updatedAt'
+      ]);
+    }
+
+    function registrationDocument(eventId, userId) {
+      return /databases/$(database)/documents/events/$(eventId)/registrations/$(userId);
+    }
+
+    function userRegistrationDocument(eventId, userId) {
+      return /databases/$(database)/documents/users/$(userId)/registrations/$(eventId);
+    }
+
+    function isRegistrationCounterMutation(eventId) {
+      let updatedEvent = request.resource.data;
+      let currentEvent = resource.data;
+      let ownRegistration = registrationDocument(eventId, request.auth.uid);
+      let ownUserRegistration = userRegistrationDocument(eventId, request.auth.uid);
+      return signedIn()
+        && currentEvent.status == 'PUBLISHED'
+        && onlyEditsRegistrationCounters()
+        && (
+          (
+            existsAfter(ownRegistration)
+            && existsAfter(ownUserRegistration)
+            && getAfter(ownRegistration).data.status == 'CONFIRMED'
+            && updatedEvent.confirmedCount == currentEvent.confirmedCount + 1
+            && updatedEvent.waitlistCount == currentEvent.waitlistCount
+            && updatedEvent.confirmedCount <= currentEvent.capacity
+          )
+          || (
+            existsAfter(ownRegistration)
+            && existsAfter(ownUserRegistration)
+            && getAfter(ownRegistration).data.status == 'WAITLISTED'
+            && updatedEvent.confirmedCount == currentEvent.confirmedCount
+            && updatedEvent.waitlistCount == currentEvent.waitlistCount + 1
+            && currentEvent.confirmedCount >= currentEvent.capacity
+          )
+          || (
+            !existsAfter(ownRegistration)
+            && !existsAfter(ownUserRegistration)
+            && updatedEvent.confirmedCount == currentEvent.confirmedCount - 1
+            && updatedEvent.waitlistCount == currentEvent.waitlistCount
+            && currentEvent.waitlistCount == 0
+          )
+          || (
+            !existsAfter(ownRegistration)
+            && !existsAfter(ownUserRegistration)
+            && updatedEvent.confirmedCount == currentEvent.confirmedCount
+            && updatedEvent.waitlistCount == currentEvent.waitlistCount - 1
+          )
+        );
+    }
+
     function createsStudentProfile() {
       return request.resource.data.keys().hasOnly([
         'displayName', 'email', 'role', 'createdAt'
@@ -70,7 +125,14 @@ service cloud.firestore {
       // Mantido até o fluxo atômico de vagas migrar as inscrições para
       // events/{eventId}/registrations/{userId} no commit de capacidade.
       match /registrations/{eventId} {
-        allow read, create, delete: if ownsUser(userId);
+        allow read: if ownsUser(userId);
+        allow create, update: if ownsUser(userId)
+            && existsAfter(registrationDocument(eventId, userId))
+            && getAfter(registrationDocument(eventId, userId)).data.attendeeId == userId
+            && request.resource.data.status == getAfter(registrationDocument(eventId, userId)).data.status;
+        allow delete: if ownsUser(userId)
+            && (!exists(registrationDocument(eventId, userId))
+              || !existsAfter(registrationDocument(eventId, userId)));
       }
 
       match /favorites/{eventId} {
@@ -85,21 +147,64 @@ service cloud.firestore {
           && hasValidEventStatus(request.resource.data)
           && request.resource.data.status == 'DRAFT';
 
-      allow update: if ownsEvent(resource.data)
-          && request.resource.data.organizerId == resource.data.organizerId
-          && hasValidEventStatus(request.resource.data)
-          && onlyEditsManagedEventFields();
+      allow update: if (
+            ownsEvent(resource.data)
+            && request.resource.data.organizerId == resource.data.organizerId
+            && hasValidEventStatus(request.resource.data)
+            && onlyEditsManagedEventFields()
+          ) || isRegistrationCounterMutation(eventId);
 
       allow delete: if ownsEvent(resource.data);
 
       match /registrations/{attendeeId} {
         allow read: if signedIn()
-            && (attendeeId == request.auth.uid
-              || ownsEvent(get(/databases/$(database)/documents/events/$(eventId)).data));
+            && canReadEvent(get(/databases/$(database)/documents/events/$(eventId)).data);
 
-        // A confirmação e a lista de espera serão controladas pelo fluxo
-        // atômico no backend; nenhum cliente grava nesta coleção diretamente.
-        allow write: if false;
+        allow create: if signedIn()
+            && attendeeId == request.auth.uid
+            && request.resource.data.attendeeId == request.auth.uid
+            && existsAfter(userRegistrationDocument(eventId, attendeeId))
+            && (
+              (
+                request.resource.data.status == 'CONFIRMED'
+                && getAfter(/databases/$(database)/documents/events/$(eventId)).data.confirmedCount
+                  == get(/databases/$(database)/documents/events/$(eventId)).data.confirmedCount + 1
+              )
+              || (
+                request.resource.data.status == 'WAITLISTED'
+                && getAfter(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount
+                  == get(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount + 1
+              )
+            );
+
+        allow delete: if signedIn()
+            && attendeeId == request.auth.uid
+            && !existsAfter(userRegistrationDocument(eventId, attendeeId))
+            && (
+              (
+                resource.data.status == 'WAITLISTED'
+                && getAfter(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount
+                  == get(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount - 1
+              )
+              || (
+                resource.data.status == 'CONFIRMED'
+                && (
+                  getAfter(/databases/$(database)/documents/events/$(eventId)).data.confirmedCount
+                    == get(/databases/$(database)/documents/events/$(eventId)).data.confirmedCount - 1
+                  || getAfter(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount
+                    == get(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount - 1
+                )
+              )
+            );
+
+        allow update: if signedIn()
+            && resource.data.status == 'WAITLISTED'
+            && request.resource.data.status == 'CONFIRMED'
+            && !existsAfter(userRegistrationDocument(eventId, request.auth.uid))
+            && getAfter(/databases/$(database)/documents/events/$(eventId)).data.confirmedCount
+              == get(/databases/$(database)/documents/events/$(eventId)).data.confirmedCount
+            && getAfter(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount
+              == get(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount - 1;
       }
 
       match /comments/{commentId} {
@@ -128,6 +233,7 @@ service cloud.firestore {
             && request.resource.data.rating >= 1
             && request.resource.data.rating <= 5
             && exists(/databases/$(database)/documents/users/$(request.auth.uid)/registrations/$(eventId))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)/registrations/$(eventId)).data.status == 'CONFIRMED'
             && get(/databases/$(database)/documents/events/$(eventId)).data.endsAt <= request.time;
 
         allow update: if canReadEvent(get(/databases/$(database)/documents/events/$(eventId)).data)
@@ -138,6 +244,7 @@ service cloud.firestore {
             && request.resource.data.rating >= 1
             && request.resource.data.rating <= 5
             && exists(/databases/$(database)/documents/users/$(request.auth.uid)/registrations/$(eventId))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)/registrations/$(eventId)).data.status == 'CONFIRMED'
             && get(/databases/$(database)/documents/events/$(eventId)).data.endsAt <= request.time;
       }
     }
