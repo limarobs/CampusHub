@@ -23,6 +23,7 @@ import com.google.firebase.auth.FirebaseAuth
 
 class EventDetailsActivity : AppCompatActivity() {
     private lateinit var registrationButton: MaterialButton
+    private lateinit var registrationStatus: TextView
     private lateinit var favoriteButton: MaterialButton
     private lateinit var ratingBar: RatingBar
     private lateinit var saveRatingButton: MaterialButton
@@ -112,6 +113,7 @@ class EventDetailsActivity : AppCompatActivity() {
     private fun bindDetailsControls() {
         registrationButton = findViewById(R.id.btnRegistration)
         registrationButton.setOnClickListener { detailsViewModel.toggleRegistration() }
+        registrationStatus = findViewById(R.id.tvRegistrationStatus)
         favoriteButton = findViewById(R.id.btnFavorite)
         favoriteButton.setOnClickListener { detailsViewModel.toggleFavorite() }
         ratingBar = findViewById(R.id.ratingBar)
@@ -143,6 +145,8 @@ class EventDetailsActivity : AppCompatActivity() {
         detailsViewModel.uiState.observe(this) { state ->
             registrationButton.text = state.registrationText
             registrationButton.isEnabled = state.registrationEnabled
+            registrationStatus.text = state.registrationStatus
+            registrationStatus.visibility = if (state.registrationStatus.isBlank()) View.GONE else View.VISIBLE
             favoriteButton.text = state.favoriteText
             favoriteButton.isEnabled = state.favoriteEnabled
             ratingSummary.text = state.ratingSummary

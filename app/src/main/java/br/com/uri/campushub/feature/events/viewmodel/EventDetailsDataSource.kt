@@ -4,10 +4,11 @@ import br.com.uri.campushub.feature.events.data.EventFavoriteRepository
 import br.com.uri.campushub.feature.events.data.EventRatingRepository
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
 import br.com.uri.campushub.feature.events.model.CampusEvent
+import br.com.uri.campushub.feature.events.model.RegistrationStatus
 
 interface EventDetailsDataSource {
-    fun getRegistration(userId: String, eventId: String, callback: (Result<Boolean>) -> Unit)
-    fun register(userId: String, event: CampusEvent, callback: (Result<Unit>) -> Unit)
+    fun getRegistration(userId: String, eventId: String, callback: (Result<RegistrationStatus?>) -> Unit)
+    fun register(userId: String, event: CampusEvent, callback: (Result<RegistrationStatus>) -> Unit)
     fun cancelRegistration(userId: String, eventId: String, callback: (Result<Unit>) -> Unit)
 
     fun getFavorite(userId: String, eventId: String, callback: (Result<Boolean>) -> Unit)
@@ -21,15 +22,18 @@ interface EventDetailsDataSource {
 
 object FirebaseEventDetailsDataSource : EventDetailsDataSource {
 
-    override fun getRegistration(userId: String, eventId: String, callback: (Result<Boolean>) -> Unit) {
+    override fun getRegistration(userId: String, eventId: String, callback: (Result<RegistrationStatus?>) -> Unit) {
         EventRegistrationRepository.getRegistration(userId, eventId).addOnCompleteListener { task ->
-            callback(task.toResult { it.exists() })
+            callback(task.toResult { snapshot ->
+                snapshot.takeIf { it.exists() }
+                    ?.let { RegistrationStatus.fromFirestore(it.getString("status")) }
+            })
         }
     }
 
-    override fun register(userId: String, event: CampusEvent, callback: (Result<Unit>) -> Unit) {
+    override fun register(userId: String, event: CampusEvent, callback: (Result<RegistrationStatus>) -> Unit) {
         EventRegistrationRepository.register(userId, event).addOnCompleteListener { task ->
-            callback(task.toUnitResult())
+            callback(task.toResult { it })
         }
     }
 

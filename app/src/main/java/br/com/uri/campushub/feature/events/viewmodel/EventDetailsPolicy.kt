@@ -1,5 +1,7 @@
 package br.com.uri.campushub.feature.events.viewmodel
 
+import br.com.uri.campushub.feature.events.model.RegistrationStatus
+
 data class RegistrationControl(
     val text: String,
     val enabled: Boolean
@@ -13,11 +15,25 @@ data class RatingEligibility(
 class EventDetailsPolicy {
 
     fun registrationControl(isRegistered: Boolean, hasEventEnded: Boolean): RegistrationControl {
+        return registrationControl(
+            if (isRegistered) RegistrationStatus.CONFIRMED else null,
+            hasEventEnded
+        )
+    }
+
+    fun registrationControl(status: RegistrationStatus?, hasEventEnded: Boolean): RegistrationControl {
         return when {
-            isRegistered -> RegistrationControl("Cancelar inscrição", true)
+            status == RegistrationStatus.WAITLISTED -> RegistrationControl("Sair da lista de espera", true)
+            status == RegistrationStatus.CONFIRMED -> RegistrationControl("Cancelar inscrição", true)
             hasEventEnded -> RegistrationControl("Evento encerrado", false)
             else -> RegistrationControl("Inscrever-se", true)
         }
+    }
+
+    fun registrationStatusText(status: RegistrationStatus?): String = when (status) {
+        RegistrationStatus.CONFIRMED -> "Inscrição confirmada."
+        RegistrationStatus.WAITLISTED -> "Você está na lista de espera."
+        else -> ""
     }
 
     fun favoriteButtonText(isFavorite: Boolean): String {

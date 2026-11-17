@@ -4,10 +4,12 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import br.com.uri.campushub.feature.events.model.CampusEvent
+import br.com.uri.campushub.feature.events.model.RegistrationStatus
 
 data class EventDetailsUiState(
     val registrationText: String = "Verificando inscrição...",
     val registrationEnabled: Boolean = false,
+    val registrationStatus: String = "",
     val favoriteText: String = "Verificando favoritos...",
     val favoriteEnabled: Boolean = false,
     val ratingSummary: String = "Carregando avaliações...",
@@ -31,6 +33,7 @@ class EventDetailsViewModel(
     private lateinit var userId: String
     private lateinit var event: CampusEvent
     private var isRegistered = false
+    private var registrationStatus: RegistrationStatus? = null
     private var isRegistrationLoaded = false
     private var isFavorite = false
     private var isFavoriteLoaded = false
@@ -88,7 +91,8 @@ class EventDetailsViewModel(
                 updateRatingEligibility()
                 return@getRegistration
             }
-            isRegistered = result.getOrDefault(false)
+            registrationStatus = result.getOrDefault(null)
+            isRegistered = registrationStatus != null
             isRegistrationLoaded = true
             updateRegistrationControl()
             updateRatingEligibility()
@@ -96,8 +100,16 @@ class EventDetailsViewModel(
     }
 
     private fun updateRegistrationControl() {
-        val control = detailsPolicy.registrationControl(isRegistered, hasEventEnded())
-        publish { copy(registrationEnabled = control.enabled, registrationText = control.text) }
+        val control = detailsPolicy.registrationControl(registrationStatus, hasEventEnded())
+        publish {
+            copy(
+                registrationEnabled = control.enabled,
+                registrationText = control.text,
+                registrationStatus = detailsPolicy.registrationStatusText(
+                    this@EventDetailsViewModel.registrationStatus
+                )
+            )
+        }
     }
 
     private fun register() {
@@ -109,8 +121,15 @@ class EventDetailsViewModel(
         publish { copy(registrationEnabled = false, registrationText = "Inscrevendo...") }
         dataSource.register(userId, event) { result ->
             if (result.isSuccess) {
+                registrationStatus = result.getOrNull()
                 isRegistered = true
-                notify("Inscrição realizada.")
+                notify(
+                    if (registrationStatus == RegistrationStatus.WAITLISTED) {
+                        "Evento lotado. Você entrou na lista de espera."
+                    } else {
+                        "Inscrição confirmada."
+                    }
+                )
                 updateRegistrationControl()
                 updateRatingEligibility()
             } else {
@@ -125,6 +144,7 @@ class EventDetailsViewModel(
         dataSource.cancelRegistration(userId, event.id) { result ->
             if (result.isSuccess) {
                 isRegistered = false
+                registrationStatus = null
                 notify("Inscrição cancelada.")
                 updateRegistrationControl()
                 updateRatingEligibility()
@@ -253,5 +273,5 @@ class EventDetailsViewModel(
     private fun hasEventEnded() = event.endsAt?.toDate()?.before(java.util.Date()) == true
 
     private fun registrationButtonText(): String =
-        detailsPolicy.registrationControl(isRegistered, hasEventEnded()).text
+        detailsPolicy.registrationControl(registrationStatus, hasEventEnded()).text
 }

@@ -4,6 +4,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import br.com.uri.campushub.feature.events.model.RegistrationStatus
 
 class EventDetailsPolicyTest {
 
@@ -31,6 +32,18 @@ class EventDetailsPolicyTest {
 
         assertEquals("Cancelar inscrição", control.text)
         assertTrue(control.enabled)
+    }
+
+    @Test
+    fun `shows waitlist controls for a waitlisted student`() {
+        val control = policy.registrationControl(RegistrationStatus.WAITLISTED, hasEventEnded = false)
+
+        assertEquals("Sair da lista de espera", control.text)
+        assertTrue(control.enabled)
+        assertEquals(
+            "Você está na lista de espera.",
+            policy.registrationStatusText(RegistrationStatus.WAITLISTED)
+        )
     }
 
     @Test

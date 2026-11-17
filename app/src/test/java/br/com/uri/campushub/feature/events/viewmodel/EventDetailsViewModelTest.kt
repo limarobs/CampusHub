@@ -2,6 +2,7 @@ package br.com.uri.campushub.feature.events.viewmodel
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import br.com.uri.campushub.feature.events.model.CampusEvent
+import br.com.uri.campushub.feature.events.model.RegistrationStatus
 import com.google.firebase.Timestamp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -37,7 +38,7 @@ class EventDetailsViewModelTest {
 
         assertEquals(1, dataSource.registerCalls)
         assertEquals("Cancelar inscrição", viewModel.uiState.value?.registrationText)
-        assertEquals("Inscrição realizada.", viewModel.message.value)
+        assertEquals("Inscrição confirmada.", viewModel.message.value)
     }
 
     @Test
@@ -158,7 +159,9 @@ class EventDetailsViewModelTest {
         registration: Boolean = false,
         favorite: Boolean = false,
         ratings: List<Int> = emptyList(),
-        registrationResult: Result<Boolean> = Result.success(registration),
+        registrationResult: Result<RegistrationStatus?> = Result.success(
+            if (registration) RegistrationStatus.CONFIRMED else null
+        ),
         favoriteResult: Result<Boolean> = Result.success(favorite)
     ) : EventDetailsDataSource {
 
@@ -166,7 +169,7 @@ class EventDetailsViewModelTest {
         var favoriteResult = favoriteResult
         var ratingsResult: Result<List<Int>> = Result.success(ratings)
         var userRatingResult: Result<Int?> = Result.success(null)
-        var registerResult: Result<Unit> = Result.success(Unit)
+        var registerResult: Result<RegistrationStatus> = Result.success(RegistrationStatus.CONFIRMED)
         var cancelResult: Result<Unit> = Result.success(Unit)
         var favoriteActionResult: Result<Unit> = Result.success(Unit)
         var unfavoriteResult: Result<Unit> = Result.success(Unit)
@@ -178,17 +181,25 @@ class EventDetailsViewModelTest {
         var saveRatingCalls = 0
         var lastSavedRating: Int? = null
 
-        override fun getRegistration(userId: String, eventId: String, callback: (Result<Boolean>) -> Unit) = callback(registrationResult)
+        override fun getRegistration(
+            userId: String,
+            eventId: String,
+            callback: (Result<RegistrationStatus?>) -> Unit
+        ) = callback(registrationResult)
 
-        override fun register(userId: String, event: CampusEvent, callback: (Result<Unit>) -> Unit) {
+        override fun register(
+            userId: String,
+            event: CampusEvent,
+            callback: (Result<RegistrationStatus>) -> Unit
+        ) {
             registerCalls++
-            if (registerResult.isSuccess) registrationResult = Result.success(true)
+            if (registerResult.isSuccess) registrationResult = Result.success(registerResult.getOrNull())
             callback(registerResult)
         }
 
         override fun cancelRegistration(userId: String, eventId: String, callback: (Result<Unit>) -> Unit) {
             cancelCalls++
-            if (cancelResult.isSuccess) registrationResult = Result.success(false)
+            if (cancelResult.isSuccess) registrationResult = Result.success(null)
             callback(cancelResult)
         }
 
