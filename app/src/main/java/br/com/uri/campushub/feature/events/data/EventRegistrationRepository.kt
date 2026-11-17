@@ -4,6 +4,7 @@ import br.com.uri.campushub.core.firebase.FirebaseServices
 import br.com.uri.campushub.feature.events.model.CampusEvent
 import br.com.uri.campushub.feature.events.model.RegistrationStatus
 import com.google.android.gms.tasks.Task
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.QuerySnapshot
@@ -118,6 +119,9 @@ object EventRegistrationRepository {
             .get()
     }
 
+    fun getEventRegistrations(eventId: String): Task<QuerySnapshot> =
+        eventDocument(eventId).collection(REGISTRATIONS_COLLECTION).get()
+
     private fun registrationDocument(userId: String, eventId: String) =
         FirebaseServices.firestore
             .collection(USERS_COLLECTION)
@@ -135,7 +139,9 @@ object EventRegistrationRepository {
         userId: String,
         event: CampusEvent,
         status: RegistrationStatus
-    ): Map<String, Any?> = mapOf(
+    ): Map<String, Any?> {
+        val attendee = FirebaseAuth.getInstance().currentUser
+        return mapOf(
         "eventId" to event.id,
         "title" to event.title,
         "description" to event.description,
@@ -145,11 +151,14 @@ object EventRegistrationRepository {
         "startsAt" to event.startsAt,
         "endsAt" to event.endsAt,
         "attendeeId" to userId,
+        "attendeeName" to (attendee?.displayName ?: attendee?.email?.substringBefore('@').orEmpty()),
+        "attendeeEmail" to attendee?.email.orEmpty(),
         "status" to status.firestoreValue,
         "registeredAt" to FieldValue.serverTimestamp(),
         "confirmedAt" to if (status == RegistrationStatus.CONFIRMED) FieldValue.serverTimestamp() else null,
         "waitlistedAt" to if (status == RegistrationStatus.WAITLISTED) FieldValue.serverTimestamp() else null
-    )
+        )
+    }
 
     private fun promoteFirstWaitlisted(
         transaction: Transaction,
