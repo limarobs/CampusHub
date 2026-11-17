@@ -6,6 +6,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
 import br.com.uri.campushub.feature.auth.ui.MainActivity
@@ -15,6 +16,7 @@ import br.com.uri.campushub.feature.events.data.toCampusEvent
 import br.com.uri.campushub.feature.events.model.CampusEvent
 import br.com.uri.campushub.feature.events.model.EventStatus
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 
@@ -127,6 +129,7 @@ class MyEventsActivity : AppCompatActivity() {
         }
         card.findViewById<TextView>(R.id.tvEventDate).text = event.date
         card.findViewById<TextView>(R.id.tvEventLocation).text = event.location
+        configureStatusAction(card.findViewById(R.id.btnEventStatusAction), event)
         card.setOnClickListener {
             if (showOrganizedEvents) {
                 startActivity(EventEditorActivity.editIntent(this, event.id))
@@ -135,6 +138,47 @@ class MyEventsActivity : AppCompatActivity() {
             }
         }
         eventsContainer.addView(card)
+    }
+
+    private fun configureStatusAction(button: MaterialButton, event: CampusEvent) {
+        if (!showOrganizedEvents || event.status == EventStatus.CLOSED) {
+            button.visibility = View.GONE
+            return
+        }
+
+        button.visibility = View.VISIBLE
+        button.text = if (event.status == EventStatus.DRAFT) "Publicar evento" else "Encerrar evento"
+        button.setOnClickListener {
+            if (event.status == EventStatus.PUBLISHED) {
+                confirmClosingEvent(event, button)
+            } else {
+                updateEventStatus(event, EventStatus.PUBLISHED, button)
+            }
+        }
+    }
+
+    private fun confirmClosingEvent(event: CampusEvent, button: MaterialButton) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Encerrar evento?")
+            .setMessage("${event.title} deixará de aceitar novas inscrições.")
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Encerrar") { _, _ ->
+                updateEventStatus(event, EventStatus.CLOSED, button)
+            }
+            .show()
+    }
+
+    private fun updateEventStatus(event: CampusEvent, status: EventStatus, button: MaterialButton) {
+        button.isEnabled = false
+        EventEditorRepository.updateStatus(event.id, status).addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                Toast.makeText(this, "Evento ${status.label.lowercase()}.", Toast.LENGTH_SHORT).show()
+                loadMyEvents()
+            } else {
+                button.isEnabled = true
+                Toast.makeText(this, "Não foi possível atualizar o evento.", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun configureContent() {

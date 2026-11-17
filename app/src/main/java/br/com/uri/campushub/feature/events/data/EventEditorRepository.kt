@@ -2,6 +2,7 @@ package br.com.uri.campushub.feature.events.data
 
 import br.com.uri.campushub.core.firebase.FirebaseServices
 import br.com.uri.campushub.feature.events.model.EventDraft
+import br.com.uri.campushub.feature.events.model.EventStatus
 import com.google.android.gms.tasks.Task
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
@@ -31,6 +32,14 @@ object EventEditorRepository {
         }
         return FirebaseServices.firestore.collection(EVENTS_COLLECTION).document(eventId).update(data)
     }
+
+    fun updateStatus(eventId: String, status: EventStatus): Task<Void> =
+        FirebaseServices.firestore.collection(EVENTS_COLLECTION).document(eventId).update(
+            mapOf(
+                "status" to status.firestoreValue,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+        )
 
     fun getEvent(eventId: String): Task<DocumentSnapshot> = EventRepository.getEvent(eventId)
 
