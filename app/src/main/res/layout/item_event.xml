@@ -68,5 +68,16 @@
             android:layout_marginTop="16dp"
             android:textAllCaps="false"
             android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnEventAttendance"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginTop="4dp"
+            android:insetLeft="0dp"
+            android:text="Acompanhar inscrições"
+            android:textAllCaps="false"
+            android:visibility="gone" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

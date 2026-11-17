@@ -130,6 +130,7 @@ class MyEventsActivity : AppCompatActivity() {
         card.findViewById<TextView>(R.id.tvEventDate).text = event.date
         card.findViewById<TextView>(R.id.tvEventLocation).text = event.location
         configureStatusAction(card.findViewById(R.id.btnEventStatusAction), event)
+        configureAttendanceAction(card.findViewById(R.id.btnEventAttendance), event)
         card.setOnClickListener {
             if (showOrganizedEvents) {
                 startActivity(EventEditorActivity.editIntent(this, event.id))
@@ -138,6 +139,13 @@ class MyEventsActivity : AppCompatActivity() {
             }
         }
         eventsContainer.addView(card)
+    }
+
+    private fun configureAttendanceAction(button: MaterialButton, event: CampusEvent) {
+        button.visibility = if (showOrganizedEvents) View.VISIBLE else View.GONE
+        button.setOnClickListener {
+            startActivity(EventAttendanceActivity.createIntent(this, event.id))
+        }
     }
 
     private fun configureStatusAction(button: MaterialButton, event: CampusEvent) {
@@ -186,7 +194,7 @@ class MyEventsActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.tvMyEventsTitle).text = "Eventos organizados"
         findViewById<TextView>(R.id.tvMyEventsSubtitle).text =
-            "Rascunhos e eventos sob sua responsabilidade. Toque para editar."
+            "Rascunhos e eventos sob sua responsabilidade. Toque para editar ou acompanhe as inscrições."
         findViewById<TextView>(R.id.tvEmptyMyEventsTitle).text = "Nenhum evento criado"
         findViewById<TextView>(R.id.tvEmptyMyEventsDescription).text =
             "Crie um evento para começar a organizar sua programação."
