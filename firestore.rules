@@ -58,6 +58,60 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(userId)/registrations/$(eventId);
     }
 
+    function isWaitlistPromotion(eventId, userId) {
+      let eventDocument = /databases/$(database)/documents/events/$(eventId);
+      let promotedRegistration = registrationDocument(eventId, userId);
+      let cancellingRegistration = registrationDocument(eventId, request.auth.uid);
+      return signedIn()
+        && request.auth.uid != userId
+        && resource.data.status == 'WAITLISTED'
+        && request.resource.data.status == 'CONFIRMED'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'qrToken', 'confirmedAt', 'waitlistedAt'
+        ])
+        && existsAfter(promotedRegistration)
+        && getAfter(promotedRegistration).data.status == 'CONFIRMED'
+        && !existsAfter(cancellingRegistration)
+        && getAfter(eventDocument).data.confirmedCount
+          == get(eventDocument).data.confirmedCount
+        && getAfter(eventDocument).data.waitlistCount
+          == get(eventDocument).data.waitlistCount - 1;
+    }
+
+    function isOrganizerCheckIn(eventId, attendeeId) {
+      let eventDocument = /databases/$(database)/documents/events/$(eventId);
+      return ownsEvent(get(eventDocument).data)
+        && resource.data.attendeeId == attendeeId
+        && resource.data.status == 'CONFIRMED'
+        && resource.data.qrToken is string
+        && resource.data.qrToken.size() > 0
+        // Inscrições antigas não possuem este campo; as novas o gravam como null.
+        && (
+          !resource.data.keys().hasAll(['checkedInAt'])
+          || resource.data.checkedInAt == null
+        )
+        && request.resource.data.checkedInAt is timestamp
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'checkedInAt'
+        ]);
+    }
+
+    function canInitializeQrToken(attendeeId) {
+      return signedIn()
+        && request.auth.uid == attendeeId
+        && resource.data.attendeeId == attendeeId
+        && resource.data.status == 'CONFIRMED'
+        && (
+          !resource.data.keys().hasAll(['qrToken'])
+          || resource.data.qrToken == ''
+        )
+        && request.resource.data.qrToken is string
+        && request.resource.data.qrToken.size() > 0
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'qrToken'
+        ]);
+    }
+
     function isRegistrationCounterMutation(eventId) {
       let updatedEvent = request.resource.data;
       let currentEvent = resource.data;
@@ -126,10 +180,16 @@ service cloud.firestore {
       // events/{eventId}/registrations/{userId} no commit de capacidade.
       match /registrations/{eventId} {
         allow read: if ownsUser(userId);
-        allow create, update: if ownsUser(userId)
+        allow create: if ownsUser(userId)
             && existsAfter(registrationDocument(eventId, userId))
             && getAfter(registrationDocument(eventId, userId)).data.attendeeId == userId
             && request.resource.data.status == getAfter(registrationDocument(eventId, userId)).data.status;
+        allow update: if (
+              ownsUser(userId)
+              && existsAfter(registrationDocument(eventId, userId))
+              && getAfter(registrationDocument(eventId, userId)).data.attendeeId == userId
+              && request.resource.data.status == getAfter(registrationDocument(eventId, userId)).data.status
+            ) || isWaitlistPromotion(eventId, userId);
         allow delete: if ownsUser(userId)
             && (!exists(registrationDocument(eventId, userId))
               || !existsAfter(registrationDocument(eventId, userId)));
@@ -197,14 +257,20 @@ service cloud.firestore {
               )
             );
 
-        allow update: if signedIn()
-            && resource.data.status == 'WAITLISTED'
-            && request.resource.data.status == 'CONFIRMED'
-            && !existsAfter(userRegistrationDocument(eventId, request.auth.uid))
-            && getAfter(/databases/$(database)/documents/events/$(eventId)).data.confirmedCount
-              == get(/databases/$(database)/documents/events/$(eventId)).data.confirmedCount
-            && getAfter(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount
-              == get(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount - 1;
+        allow update: if (
+              signedIn()
+              && resource.data.status == 'WAITLISTED'
+              && request.resource.data.status == 'CONFIRMED'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'qrToken', 'confirmedAt', 'waitlistedAt'
+              ])
+              && !existsAfter(userRegistrationDocument(eventId, request.auth.uid))
+              && getAfter(/databases/$(database)/documents/events/$(eventId)).data.confirmedCount
+                == get(/databases/$(database)/documents/events/$(eventId)).data.confirmedCount
+              && getAfter(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount
+                == get(/databases/$(database)/documents/events/$(eventId)).data.waitlistCount - 1
+            ) || isOrganizerCheckIn(eventId, attendeeId)
+              || canInitializeQrToken(attendeeId);
       }
 
       match /comments/{commentId} {
