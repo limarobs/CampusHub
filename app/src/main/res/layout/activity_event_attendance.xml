@@ -141,6 +141,14 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnStartCheckIn"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="@dimen/space_group"
+                android:text="Ler QR Code para check-in"
+                android:textAllCaps="false" />
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

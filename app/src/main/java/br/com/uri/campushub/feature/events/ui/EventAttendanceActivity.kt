@@ -26,6 +26,7 @@ class EventAttendanceActivity : AppCompatActivity() {
     private lateinit var error: View
     private lateinit var registrationsContainer: LinearLayout
     private lateinit var emptyState: View
+    private var refreshOnResume = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,7 +45,19 @@ class EventAttendanceActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<MaterialButton>(R.id.btnRetryAttendance).setOnClickListener { loadAttendance() }
+        findViewById<MaterialButton>(R.id.btnStartCheckIn).setOnClickListener {
+            refreshOnResume = true
+            startActivity(CheckInScannerActivity.createIntent(this, eventId))
+        }
         loadAttendance()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::content.isInitialized && refreshOnResume) {
+            refreshOnResume = false
+            loadAttendance()
+        }
     }
 
     private fun loadAttendance() {
