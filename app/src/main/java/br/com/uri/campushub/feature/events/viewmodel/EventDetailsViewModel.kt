@@ -10,6 +10,7 @@ data class EventDetailsUiState(
     val registrationText: String = "Verificando inscrição...",
     val registrationEnabled: Boolean = false,
     val registrationStatus: String = "",
+    val registrationState: RegistrationStatus? = null,
     val favoriteText: String = "Verificando favoritos...",
     val favoriteEnabled: Boolean = false,
     val ratingSummary: String = "Carregando avaliações...",
@@ -105,6 +106,7 @@ class EventDetailsViewModel(
             copy(
                 registrationEnabled = control.enabled,
                 registrationText = control.text,
+                registrationState = this@EventDetailsViewModel.registrationStatus,
                 registrationStatus = detailsPolicy.registrationStatusText(
                     this@EventDetailsViewModel.registrationStatus
                 )

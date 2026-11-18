@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
 import br.com.uri.campushub.feature.auth.ui.MainActivity
 import br.com.uri.campushub.feature.events.model.CampusEvent
+import br.com.uri.campushub.feature.events.model.RegistrationStatus
 import br.com.uri.campushub.feature.events.viewmodel.EventDetailsPolicy
 import br.com.uri.campushub.feature.events.viewmodel.EventDetailsViewModel
 import com.google.android.material.button.MaterialButton
@@ -24,6 +25,7 @@ import com.google.firebase.auth.FirebaseAuth
 class EventDetailsActivity : AppCompatActivity() {
     private lateinit var registrationButton: MaterialButton
     private lateinit var registrationStatus: TextView
+    private lateinit var qrCodeButton: MaterialButton
     private lateinit var favoriteButton: MaterialButton
     private lateinit var ratingBar: RatingBar
     private lateinit var saveRatingButton: MaterialButton
@@ -114,6 +116,10 @@ class EventDetailsActivity : AppCompatActivity() {
         registrationButton = findViewById(R.id.btnRegistration)
         registrationButton.setOnClickListener { detailsViewModel.toggleRegistration() }
         registrationStatus = findViewById(R.id.tvRegistrationStatus)
+        qrCodeButton = findViewById(R.id.btnRegistrationQr)
+        qrCodeButton.setOnClickListener {
+            startActivity(RegistrationQrActivity.createIntent(this, event.id))
+        }
         favoriteButton = findViewById(R.id.btnFavorite)
         favoriteButton.setOnClickListener { detailsViewModel.toggleFavorite() }
         ratingBar = findViewById(R.id.ratingBar)
@@ -147,6 +153,7 @@ class EventDetailsActivity : AppCompatActivity() {
             registrationButton.isEnabled = state.registrationEnabled
             registrationStatus.text = state.registrationStatus
             registrationStatus.visibility = if (state.registrationStatus.isBlank()) View.GONE else View.VISIBLE
+            qrCodeButton.visibility = if (state.registrationState == RegistrationStatus.CONFIRMED) View.VISIBLE else View.GONE
             favoriteButton.text = state.favoriteText
             favoriteButton.isEnabled = state.favoriteEnabled
             ratingSummary.text = state.ratingSummary
