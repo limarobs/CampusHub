@@ -21,6 +21,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import br.com.uri.campushub.R
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
+import br.com.uri.campushub.feature.events.model.CheckInCode
 import com.google.android.material.button.MaterialButton
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
@@ -111,13 +112,13 @@ class CheckInScannerActivity : AppCompatActivity() {
     private fun validateQrCode(rawValue: String) {
         if (handlingResult) return
         handlingResult = true
-        val payload = rawValue.split('|', limit = 4)
-        if (payload.size != 4 || payload[0] != RegistrationQrActivity.PAYLOAD_PREFIX || payload[1] != eventId) {
+        val payload = CheckInCode.parseQrPayload(rawValue, eventId)
+        if (payload == null) {
             showResult("Este QR Code não pertence a este evento.", retry = true)
             return
         }
 
-        checkIn(payload[2], payload[3])
+        checkIn(payload.attendeeId, payload.token)
     }
 
     private fun showManualCodeDialog() {
@@ -137,8 +138,8 @@ class CheckInScannerActivity : AppCompatActivity() {
 
     private fun validateManualCode(value: String) {
         if (handlingResult) return
-        val code = value.trim().uppercase()
-        if (code.length != RegistrationQrActivity.MANUAL_CODE_LENGTH) {
+        val code = CheckInCode.normalizeManualCode(value)
+        if (!CheckInCode.isValidManualCode(code)) {
             showResult("Informe o codigo alternativo com 8 caracteres.", retry = true)
             return
         }
@@ -148,7 +149,7 @@ class CheckInScannerActivity : AppCompatActivity() {
         EventRegistrationRepository.getEventRegistrations(eventId).addOnCompleteListener { task ->
             val registration = task.result?.documents?.firstOrNull { document ->
                 document.getString("status") == "CONFIRMED"
-                    && RegistrationQrActivity.manualCodeFromToken(document.getString("qrToken").orEmpty()) == code
+                    && CheckInCode.manualCodeFromToken(document.getString("qrToken").orEmpty()) == code
             }
             if (!task.isSuccessful || registration == null) {
                 showResult("Codigo alternativo invalido.", retry = true)

@@ -11,6 +11,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
+import br.com.uri.campushub.feature.events.model.CheckInCode
 import br.com.uri.campushub.feature.events.model.RegistrationStatus
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
@@ -73,9 +74,9 @@ class RegistrationQrActivity : AppCompatActivity() {
         eventId: String,
         userId: String
     ) {
-        code.setImageBitmap(createQrBitmap("$PAYLOAD_PREFIX|$eventId|$userId|$token"))
+        code.setImageBitmap(createQrBitmap(CheckInCode.createQrPayload(eventId, userId, token)))
         code.visibility = View.VISIBLE
-        manualCode.text = "Codigo alternativo: ${manualCodeFromToken(token)}"
+        manualCode.text = "Codigo alternativo: ${CheckInCode.manualCodeFromToken(token)}"
         manualCode.visibility = View.VISIBLE
     }
 
@@ -91,13 +92,8 @@ class RegistrationQrActivity : AppCompatActivity() {
     }
 
     companion object {
-        const val PAYLOAD_PREFIX = "CAMPUSHUB_CHECKIN"
         private const val EXTRA_EVENT_ID = "event_id"
         private const val QR_SIZE = 720
-        const val MANUAL_CODE_LENGTH = 8
-
-        fun manualCodeFromToken(token: String): String =
-            token.replace("-", "").take(MANUAL_CODE_LENGTH).uppercase()
 
         fun createIntent(context: Context, eventId: String): Intent =
             Intent(context, RegistrationQrActivity::class.java).putExtra(EXTRA_EVENT_ID, eventId)
