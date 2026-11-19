@@ -120,50 +120,6 @@ object EventRegistrationRepository {
             .get()
     }
 
-    fun getEventRegistrations(eventId: String): Task<QuerySnapshot> =
-        eventDocument(eventId).collection(REGISTRATIONS_COLLECTION).get()
-
-    fun ensureQrToken(userId: String, eventId: String): Task<String> =
-        FirebaseServices.firestore.runTransaction { transaction ->
-            val registration = eventRegistrationDocument(eventId, userId)
-            val snapshot = transaction.get(registration)
-            require(snapshot.exists()) { "InscriÃ§Ã£o nÃ£o encontrada." }
-            require(snapshot.getString("attendeeId") == userId) { "InscriÃ§Ã£o invÃ¡lida." }
-            require(snapshot.getString("status") == RegistrationStatus.CONFIRMED.firestoreValue) {
-                "Somente inscriÃ§Ãµes confirmadas possuem QR Code."
-            }
-
-            val existingToken = snapshot.getString("qrToken").orEmpty()
-            if (existingToken.isNotBlank()) return@runTransaction existingToken
-
-            UUID.randomUUID().toString().also { token ->
-                transaction.update(registration, "qrToken", token)
-            }
-        }
-
-    fun checkIn(
-        organizerId: String,
-        eventId: String,
-        attendeeId: String,
-        qrToken: String
-    ): Task<Boolean> = FirebaseServices.firestore.runTransaction { transaction ->
-        val event = transaction.get(eventDocument(eventId))
-        require(event.exists() && event.getString("organizerId") == organizerId) {
-            "Você não pode registrar presença neste evento."
-        }
-        val registration = eventRegistrationDocument(eventId, attendeeId)
-        val registrationSnapshot = transaction.get(registration)
-        require(registrationSnapshot.exists()) { "Inscrição não encontrada." }
-        require(registrationSnapshot.getString("status") == RegistrationStatus.CONFIRMED.firestoreValue) {
-            "Somente inscrições confirmadas podem fazer check-in."
-        }
-        require(registrationSnapshot.getString("qrToken") == qrToken) { "QR Code inválido." }
-        require(registrationSnapshot.getTimestamp("checkedInAt") == null) { "Este QR Code já foi utilizado." }
-
-        transaction.update(registration, "checkedInAt", FieldValue.serverTimestamp())
-        true
-    }
-
     private fun registrationDocument(userId: String, eventId: String) =
         FirebaseServices.firestore
             .collection(USERS_COLLECTION)

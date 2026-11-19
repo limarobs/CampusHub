@@ -20,8 +20,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import br.com.uri.campushub.R
-import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
-import br.com.uri.campushub.feature.events.model.CheckInCode
+import br.com.uri.campushub.feature.events.model.CheckInCandidate
 import com.google.android.material.button.MaterialButton
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
@@ -43,6 +42,7 @@ class CheckInScannerActivity : AppCompatActivity() {
     )
     private var cameraProvider: ProcessCameraProvider? = null
     private var handlingResult = false
+    private val coordinator = CheckInCoordinator()
 
     private val cameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -112,13 +112,13 @@ class CheckInScannerActivity : AppCompatActivity() {
     private fun validateQrCode(rawValue: String) {
         if (handlingResult) return
         handlingResult = true
-        val payload = CheckInCode.parseQrPayload(rawValue, eventId)
-        if (payload == null) {
+        val candidate = coordinator.candidateFromQr(rawValue, eventId)
+        if (candidate == null) {
             showResult("Este QR Code não pertence a este evento.", retry = true)
             return
         }
 
-        checkIn(payload.attendeeId, payload.token)
+        checkIn(candidate)
     }
 
     private fun showManualCodeDialog() {
@@ -138,30 +138,27 @@ class CheckInScannerActivity : AppCompatActivity() {
 
     private fun validateManualCode(value: String) {
         if (handlingResult) return
-        val code = CheckInCode.normalizeManualCode(value)
-        if (!CheckInCode.isValidManualCode(code)) {
+        val code = coordinator.manualCode(value)
+        if (code == null) {
             showResult("Informe o codigo alternativo com 8 caracteres.", retry = true)
             return
         }
 
         handlingResult = true
         feedback.text = "Validando check-in..."
-        EventRegistrationRepository.getEventRegistrations(eventId).addOnCompleteListener { task ->
-            val registration = task.result?.documents?.firstOrNull { document ->
-                document.getString("status") == "CONFIRMED"
-                    && CheckInCode.manualCodeFromToken(document.getString("qrToken").orEmpty()) == code
-            }
-            if (!task.isSuccessful || registration == null) {
+        coordinator.resolveManualCandidate(eventId, code).addOnCompleteListener { task ->
+            val candidate = task.result
+            if (!task.isSuccessful || candidate == null) {
                 showResult("Codigo alternativo invalido.", retry = true)
                 return@addOnCompleteListener
             }
-            checkIn(registration.getString("attendeeId").orEmpty(), registration.getString("qrToken").orEmpty())
+            checkIn(candidate)
         }
     }
 
-    private fun checkIn(attendeeId: String, qrToken: String) {
+    private fun checkIn(candidate: CheckInCandidate) {
         runOnUiThread { feedback.text = "Validando check-in..." }
-        EventRegistrationRepository.checkIn(organizerId, eventId, attendeeId, qrToken)
+        coordinator.confirm(organizerId, eventId, candidate)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     showResult("Check-in registrado com sucesso.", retry = false)

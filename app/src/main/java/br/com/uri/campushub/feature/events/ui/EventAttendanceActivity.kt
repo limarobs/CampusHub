@@ -9,8 +9,8 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
+import br.com.uri.campushub.feature.events.data.CheckInRepository
 import br.com.uri.campushub.feature.events.data.EventEditorRepository
-import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
 import br.com.uri.campushub.feature.events.data.toCampusEvent
 import br.com.uri.campushub.feature.events.data.toEventRegistration
 import br.com.uri.campushub.feature.events.model.EventRegistration
@@ -78,7 +78,7 @@ class EventAttendanceActivity : AppCompatActivity() {
             }
 
             bindEvent(event)
-            EventRegistrationRepository.getEventRegistrations(eventId).addOnCompleteListener { registrationsTask ->
+            CheckInRepository.getEventRegistrations(eventId).addOnCompleteListener { registrationsTask ->
                 if (!registrationsTask.isSuccessful) {
                     showError()
                     return@addOnCompleteListener

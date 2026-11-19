@@ -10,6 +10,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import br.com.uri.campushub.R
+import br.com.uri.campushub.feature.events.data.CheckInRepository
 import br.com.uri.campushub.feature.events.data.EventRegistrationRepository
 import br.com.uri.campushub.feature.events.model.CheckInCode
 import br.com.uri.campushub.feature.events.model.RegistrationStatus
@@ -55,7 +56,7 @@ class RegistrationQrActivity : AppCompatActivity() {
                 return@addOnCompleteListener
             }
 
-            EventRegistrationRepository.ensureQrToken(userId, eventId).addOnCompleteListener { tokenTask ->
+            CheckInRepository.ensureQrToken(userId, eventId).addOnCompleteListener { tokenTask ->
                 progress.visibility = View.GONE
                 val newToken = tokenTask.result.orEmpty()
                 if (!tokenTask.isSuccessful || newToken.isBlank()) {
