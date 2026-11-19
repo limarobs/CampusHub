@@ -1,134 +1,123 @@
 # CampusHub
 
-<p align="center">
-  <strong>Eventos universitários, reunidos em um só lugar.</strong><br />
-  Aplicativo Android para alunos encontrarem, acompanharem e interagirem com eventos da universidade.
-</p>
+Aplicativo Android para descoberta, organização e acompanhamento de eventos universitários.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Android-24%2B-3DDC84?logo=android&logoColor=white" alt="Android 24+" />
-  <img src="https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin" />
-  <img src="https://img.shields.io/badge/Firebase-Authentication%20%7C%20Firestore-FFCA28?logo=firebase&logoColor=black" alt="Firebase" />
-  <img src="https://img.shields.io/badge/Mapbox-Maps-000000?logo=mapbox&logoColor=white" alt="Mapbox" />
-</p>
-
-## Sobre o projeto
-
-O **CampusHub** permite que alunos criem uma conta, consultem eventos universitários e acompanhem suas inscrições. Nos detalhes de cada evento, o aluno pode ver o local no mapa, favoritar, comentar, avaliar e publicar mídias relacionadas ao evento.
+O projeto permite que alunos encontrem eventos e se inscrevam, enquanto organizadores criam, publicam, acompanham participantes e registram presenças por QR Code.
 
 ## Funcionalidades
 
-| Área | Recursos |
-| --- | --- |
-| Autenticação | Criar conta, login, logout e recuperação de senha por e-mail |
-| Perfil | Visualizar e editar o nome do usuário |
-| Eventos | Listar, pesquisar, filtrar por categoria/situação e consultar detalhes |
-| Localização | Exibir endereço e ponto do evento no mapa |
-| Inscrições | Inscrever-se, cancelar inscrição e visualizar “Meus eventos” |
-| Favoritos | Favoritar, desfavoritar e consultar “Meus favoritos” |
-| Comentários | Publicar, editar e excluir apenas os próprios comentários |
-| Avaliações | Alunos inscritos avaliam eventos encerrados com nota de 1 a 5 |
-| Fotos | Tirar foto ou selecionar da galeria; arquivos ficam locais no dispositivo |
-| Áudios | Gravar, reproduzir com progresso e excluir o próprio áudio local |
-| Vídeos | Gravar ou selecionar vídeo, assistir e excluir o próprio vídeo local |
+### Aluno
 
-Fotos, áudios e vídeos apresentam autor e data. Essas publicações são independentes de inscrição, comentários e avaliações.
+- Criar conta, entrar, recuperar senha e editar o perfil.
+- Consultar, pesquisar e filtrar eventos publicados.
+- Ver detalhes do evento, localização no mapa, comentários e avaliações.
+- Favoritar eventos e consultar inscrições em **Meus eventos**.
+- Inscrever-se em eventos com vagas disponíveis.
+- Entrar automaticamente na lista de espera quando não houver vaga.
+- Exibir QR Code e código alternativo para uma inscrição confirmada.
+- Avaliar eventos encerrados nos quais participou.
+
+### Organizador
+
+- Criar, editar e salvar eventos como rascunho.
+- Publicar ou encerrar somente eventos sob sua responsabilidade.
+- Informar título, descrição, categoria, data, local, endereço, capacidade e imagem de capa.
+- Consultar os próprios eventos e o painel de acompanhamento.
+- Ver inscritos confirmados, pessoas na espera, vagas ocupadas e check-ins realizados.
+- Ler QR Code ou informar o código alternativo para registrar presença uma única vez.
+
+### Regras de vagas e check-in
+
+- As inscrições usam transações do Firestore para impedir que a capacidade seja ultrapassada.
+- Ao cancelar uma inscrição confirmada, a próxima pessoa da lista de espera é promovida.
+- Cada inscrição confirmada possui uma credencial única de QR Code.
+- Um QR Code não pode ser validado mais de uma vez.
 
 ## Tecnologias
 
-- Kotlin
-- Android SDK e Material Components
+- Kotlin e Android SDK (mínimo: API 24)
+- Material Components
 - Firebase Authentication (e-mail e senha)
-- Cloud Firestore
+- Cloud Firestore e Firestore Security Rules
 - Mapbox Maps SDK
-- Arquitetura por feature, repositories e ViewModels
-- Gradle com Kotlin DSL
-
-## Organização do código
-
-```text
-br.com.uri.campushub
-├── core
-│   └── firebase
-├── feature
-│   ├── auth
-│   │   └── ui
-│   ├── events
-│   │   ├── data
-│   │   ├── model
-│   │   ├── ui
-│   │   └── viewmodel
-│   ├── home
-│   │   └── ui
-│   └── profile
-│       ├── data
-│       └── ui
-```
+- CameraX e ML Kit Barcode Scanning
+- ZXing para geração de QR Code
+- Arquitetura organizada por feature, repositories e ViewModels
 
 ## Como executar
 
-1. Clone o repositório e abra a pasta no Android Studio.
-2. No [Firebase Console](https://console.firebase.google.com/), crie ou selecione um projeto Firebase.
-3. Registre o app Android com o pacote:
+1. Clone o repositório e abra-o no Android Studio.
+2. No [Firebase Console](https://console.firebase.google.com/), crie ou selecione um projeto.
+3. Registre um aplicativo Android com o pacote abaixo:
 
    ```text
    br.com.uri.campushub
    ```
 
-4. Baixe `google-services.json` e coloque-o em `app/google-services.json`.
-5. Ative **Authentication → E-mail/senha** e crie o banco **Cloud Firestore**.
-6. Crie um token público do Mapbox e adicione-o ao arquivo `local.properties`:
+4. Baixe o arquivo `google-services.json` e coloque-o em `app/google-services.json`.
+5. Ative **Authentication > Sign-in method > E-mail/senha**.
+6. Crie um banco **Cloud Firestore**.
+7. Publique o conteúdo de [`firestore.rules`](firestore.rules) em **Firestore Database > Rules**.
+8. Crie um token público do Mapbox e adicione-o ao arquivo `local.properties`:
 
    ```properties
    MAPBOX_ACCESS_TOKEN=SEU_TOKEN_PUBLICO
    ```
 
-7. Sincronize o Gradle e execute em um dispositivo ou emulador com API 24 ou superior.
+9. Sincronize o Gradle e execute o app em um dispositivo ou emulador Android com API 24 ou superior.
 
-> `local.properties` e `app/google-services.json` são arquivos locais, ignorados pelo Git. Nunca envie credenciais privadas ao repositório.
+> `local.properties` e `app/google-services.json` estão no `.gitignore`. Não envie tokens ou credenciais privadas ao repositório.
 
-## Estrutura dos eventos no Firestore
+## Perfis e permissões
 
-Crie documentos na coleção `events`. Campos principais:
+Contas novas são criadas como `STUDENT`. Por segurança, o usuário não consegue mudar o próprio papel pelo app.
+
+Para testar as funções de organizador, no Firebase Console altere manualmente o documento `users/{uid}` da conta de teste:
 
 ```text
-title: Semana Acadêmica                 // string
-description: Palestras e oficinas.      // string
-date: 15/10/2026 às 19:00               // string
-location: Auditório Central             // string
-address: Rua Exemplo, 100               // string
-latitude: -27.633                       // double
-longitude: -52.275                      // double
-category: Acadêmico                     // string
-startsAt: timestamp                     // timestamp
-endsAt: timestamp                       // timestamp
+role: ORGANIZER
 ```
 
-## Fluxo principal
+As regras do Firestore garantem que somente o organizador responsável por um evento pode criá-lo, editá-lo, publicá-lo, encerrá-lo ou registrar check-ins.
 
-```text
-Login → Eventos → Detalhes → Inscrição/Favorito/Interações → Meus eventos e Meus favoritos
+## Fluxo de teste manual
+
+1. Crie uma conta e altere seu `role` para `ORGANIZER` no Firestore.
+2. Crie um evento com capacidade baixa, salve como rascunho e publique-o.
+3. Crie uma segunda conta `STUDENT` e faça uma inscrição confirmada.
+4. Inscreva uma terceira conta quando a capacidade estiver cheia e confirme o status **Em espera**.
+5. Cancele a inscrição confirmada e confira a promoção da próxima pessoa da espera.
+6. Na conta do aluno confirmado, abra o evento e toque em **Mostrar meu QR Code de check-in**.
+7. Na conta organizadora, abra **Meus eventos > Acompanhamento** e use **Ler QR Code para check-in**.
+8. Leia o QR Code ou informe o código alternativo de oito caracteres exibido para o aluno.
+9. Tente validar novamente a mesma inscrição e confirme que ela é recusada.
+
+## Testes automatizados
+
+```bash
+./gradlew testDebugUnitTest
+./gradlew connectedDebugAndroidTest
 ```
 
-## Testes
+Para usar Firebase Emulator Suite durante os testes de integração e os fluxos Maestro:
 
-Os testes são organizados em três níveis: unitários para regras de negócio, integração com o Firebase Emulator Suite e fluxos E2E com Maestro.
-
-```text
-./gradlew testDebugUnitTest       # testes unitários
-./gradlew createCoreUnitTestCoverageReport # relatório em app/build/reports/coverage/core-unit-test/debug/html
-./gradlew connectedDebugAndroidTest # 10 testes de integração com Firebase
-```
-
-Para executar os E2E, inicie os emuladores Firebase e, em outro terminal, rode os fluxos Maestro no emulador Android:
-
-```text
+```bash
 npx firebase-tools emulators:start --only auth,firestore --project campushub-c6980
 maestro test maestro
 ```
 
-Os fluxos usam contas temporárias e ativam o Firebase Emulator apenas por meio do argumento de inicialização do Maestro. O aplicativo aberto normalmente continua usando a configuração Firebase padrão.
+## Estrutura principal
 
----
+```text
+br.com.uri.campushub
+├── core/firebase                 # configuração Firebase
+└── feature
+    ├── auth                      # login, cadastro e recuperação de senha
+    ├── events                    # catálogo, editor, inscrições e check-in
+    ├── home                      # início e atalhos por papel
+    └── profile                   # perfil e papel do usuário
+```
 
-Desenvolvido para centralizar a experiência de eventos universitários.
+## Commits da atividade
+
+Os commits relacionados a perfis, gerenciamento de eventos, capacidade, lista de espera, acompanhamento e check-in estão no [histórico do repositório](https://github.com/limarobs/CampusHub/commits/main/).
